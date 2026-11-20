@@ -19,6 +19,8 @@
     <useHitPoints>true</useHitPoints>
     <leaveResourcesWhenKilled>false</leaveResourcesWhenKilled>
     <designationCategory>CB_Conveyors</designationCategory>
+    <!-- placed by the two-click Designator_BeltPath_* (CB_Conveyors specialDesignatorClasses) -->
+    <canGenerateDefaultDesignator>false</canGenerateDefaultDesignator>
     <replaceTags>
       <li>ConveyorBelt</li>
     </replaceTags>

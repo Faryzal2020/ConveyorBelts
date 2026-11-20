@@ -4,6 +4,10 @@
     <defName>CB_Conveyors</defName>
     <label>conveyors</label>
     <order>260</order>
-    <!-- specialDesignatorClasses are added in Task 7 -->
+    <specialDesignatorClasses>
+      <li>ConveyorBelts.Designator_BeltPath_Basic</li>
+      <li>ConveyorBelts.Designator_BeltPath_Fast</li>
+      <li>ConveyorBelts.Designator_BeltPath_Express</li>
+    </specialDesignatorClasses>
   </DesignationCategoryDef>
 </Defs>
