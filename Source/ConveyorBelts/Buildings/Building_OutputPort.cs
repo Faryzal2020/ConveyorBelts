@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using ConveyorBelts.Sim;
 using RimWorld;
-using UnityEngine;
 using Verse;
 
 namespace ConveyorBelts
@@ -18,9 +17,6 @@ namespace ConveyorBelts
         Thing buffer;
         CompPowerTrader power;
         List<PortTabSection> sections;
-
-        static OutputFullMode? clipboard;
-        static Texture2D tabIcon;
 
         public bool Powered => power == null || power.PowerOn;
         public OutputFullMode FullMode => fullMode;
@@ -48,13 +44,9 @@ namespace ConveyorBelts
             MapComponent_Belts.For(map)?.Sim.RemoveSink(cell.ToCell());
             base.DeSpawn(mode);
             // Never lose the held stack: it lies where the port stood.
-            if (buffer != null)
-            {
-                var t = buffer;
-                buffer = null;
-                if (!t.Destroyed && t.stackCount > 0 && !GenPlace.TryPlaceThing(t, cell, map, ThingPlaceMode.Near))
-                    t.Destroy();   // only if the map has no room at all
-            }
+            var t = buffer;
+            buffer = null;
+            PortGizmos.DropBuffer(t, cell, map);
         }
 
         /// <summary>Called from inside Sim.Tick: only moves the thing from the store to the buffer; never touches the sim.</summary>
@@ -103,29 +95,9 @@ namespace ConveyorBelts
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (var g in base.GetGizmos()) yield return g;
-            tabIcon ??= ContentFinder<Texture2D>.Get("ConveyorBelts/UI/TabPort");
-            yield return new Command_Action
-            {
-                defaultLabel = "CB_ConfigureOutput".Translate(),
-                defaultDesc = "CB_ConfigureOutputDesc".Translate(),
-                icon = tabIcon,
-                action = Building_InputPort.OpenPortTab,
-            };
-            yield return new Command_Action
-            {
-                defaultLabel = "CB_CopyMode".Translate(),
-                defaultDesc = "CB_CopyModeDesc".Translate(),
-                icon = TexButton.Copy,
-                action = () => clipboard = fullMode,
-            };
-            if (clipboard.HasValue)
-                yield return new Command_Action
-                {
-                    defaultLabel = "CB_PasteMode".Translate(),
-                    defaultDesc = "CB_PasteModeDesc".Translate(),
-                    icon = TexButton.Paste,
-                    action = () => SetFullMode(clipboard.Value),
-                };
+            yield return PortGizmos.OpenTab("CB_ConfigureOutput", "CB_ConfigureOutputDesc");
+            foreach (var g in PortGizmos.CopyPaste(() => fullMode, SetFullMode, "CB_CopyModeDesc", "CB_PasteModeDesc"))
+                yield return g;
         }
 
         public override void ExposeData()

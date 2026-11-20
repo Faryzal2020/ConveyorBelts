@@ -16,8 +16,6 @@ namespace ConveyorBelts
         int nextDir;   // round-robin cursor (Dir int) — where the next feed attempt starts
         List<PortTabSection> sections;
 
-        static Texture2D tabIcon;
-
         public bool Powered => power == null || power.PowerOn;
 
         /// <summary>The section the Port tab draws; its operations are what the tab's buttons call.</summary>
@@ -96,17 +94,8 @@ namespace ConveyorBelts
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (var g in base.GetGizmos()) yield return g;
-            tabIcon ??= ContentFinder<Texture2D>.Get("ConveyorBelts/UI/TabPort");
-            yield return new Command_Action
-            {
-                defaultLabel = "CB_ConfigureItems".Translate(),
-                defaultDesc = "CB_ConfigureItemsDesc".Translate(),
-                icon = tabIcon,
-                action = OpenPortTab,
-            };
+            yield return PortGizmos.OpenTab("CB_ConfigureItems", "CB_ConfigureItemsDesc");
         }
-
-        public static void OpenPortTab() => InspectPaneUtility.OpenTab(typeof(ITab_Port));
 
         public override void ExposeData()
         {

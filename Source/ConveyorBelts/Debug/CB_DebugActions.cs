@@ -248,7 +248,7 @@ namespace ConveyorBelts
             Find.Selector.ClearSelection();
             Find.Selector.Select(p, playSound: false);
             p.FilterSection.SearchText = "ste";   // what a player would type; the screenshot shows the matches
-            Building_InputPort.OpenPortTab();
+            PortGizmos.OpenPortTab();
             var pane = (MainTabWindow_Inspect)MainButtonDefOf.Inspect.TabWindow;
             Find.CameraDriver.SetRootPosAndSize(p.Position.ToVector3Shifted(), 8f);
             Log.Message($"[CB] selected {p}; openTab={pane.OpenTabType?.Name ?? "none"} curTabs=[{string.Join(", ", pane.CurTabs?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
@@ -302,7 +302,116 @@ namespace ConveyorBelts
             if (p == null) { Log.Warning("[CB] no output port"); return; }
             Find.Selector.ClearSelection();
             Find.Selector.Select(p, playSound: false);
-            Building_InputPort.OpenPortTab();
+            PortGizmos.OpenPortTab();
+            var pane = (MainTabWindow_Inspect)MainButtonDefOf.Inspect.TabWindow;
+            Find.CameraDriver.SetRootPosAndSize(p.Position.ToVector3Shifted(), 8f);
+            Log.Message($"[CB] selected {p}; openTab={pane.OpenTabType?.Name ?? "none"} curTabs=[{string.Join(", ", pane.CurTabs?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
+        }
+
+        // ---- Pusher port ----
+
+        static List<Building_PusherPort> Pushers(Map map)
+            => map.listerThings.AllThings.OfType<Building_PusherPort>().OrderBy(p => p.thingIDNumber).ToList();
+
+        /// <summary>What the machine holds: fuel, wort, frame materials or the items on its storage cells.</summary>
+        static string TargetState(Thing t)
+        {
+            if (t == null) return "none";
+            var parts = new List<string> { $"{t.def.defName}#{t.thingIDNumber}" };
+            if (t is Frame f)
+                parts.Add("container=[" + string.Join(", ", f.resourceContainer.Select(x => x.def.defName + " x" + x.stackCount)) + "] needed=[" +
+                          string.Join(", ", f.TotalMaterialCost().Select(c => c.thingDef.defName + " " + f.ThingCountNeeded(c.thingDef) + "/" + c.count)) + "]");
+            var fuel = t.TryGetComp<CompRefuelable>();
+            if (fuel != null) parts.Add($"fuel={fuel.Fuel:0.##}/{fuel.TargetFuelLevel:0.##} full={fuel.IsFull}");
+            if (t is Building_FermentingBarrel b) parts.Add($"wort={25 - b.SpaceLeftForWort} space={b.SpaceLeftForWort}");
+            if (t is ISlotGroupParent sg)
+                parts.Add("cells=[" + string.Join(", ", sg.AllSlotCellsList().SelectMany(c => c.GetThingList(t.Map))
+                          .Where(x => x.def.category == ThingCategory.Item).Select(x => x.def.defName + " x" + x.stackCount)) + "]");
+            return string.Join(" ", parts);
+        }
+
+        static string Describe(Building_PusherPort p)
+        {
+            var sec = new Section_PusherModes(p);
+            return $"pusher {p.thingIDNumber} at {p.Position} rot={p.Rotation} mode={p.RejectMode} sides={p.EjectSides} powered={p.Powered} " +
+                   $"buffer={(p.Buffer == null ? "none" : p.Buffer.def.defName + " x" + p.Buffer.stackCount)} | {sec.FacingLine()} | {sec.AcceptsLine()} | target: {TargetState(p.Target)}";
+        }
+
+        static void SetPushers(PusherRejectMode m)
+        {
+            foreach (var p in Pushers(Find.CurrentMap))
+            {
+                p.SetRejectMode(m);   // the call the radio buttons make
+                Log.Message($"[CB] {Describe(p)}");
+            }
+        }
+
+        [DebugAction(Cat, "Pushers: eject if never accepted", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PushersEjectNever() => SetPushers(PusherRejectMode.EjectIfNeverAccepted);
+
+        [DebugAction(Cat, "Pushers: eject whenever not accepted", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PushersEjectNow() => SetPushers(PusherRejectMode.EjectIfNotAcceptedNow);
+
+        [DebugAction(Cat, "Pushers: always wait", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PushersWait() => SetPushers(PusherRejectMode.AlwaysWait);
+
+        [DebugAction(Cat, "Pushers: toggle eject side", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PushersToggleSide()
+        {
+            foreach (var p in Pushers(Find.CurrentMap))
+            {
+                p.SetEjectSides(p.EjectSides == EjectSides.LeftThenRight ? EjectSides.RightThenLeft : EjectSides.LeftThenRight);   // the dropdown's call
+                Log.Message($"[CB] {Describe(p)}");
+            }
+        }
+
+        [DebugAction(Cat, "Log pushers", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void LogPushers()
+        {
+            foreach (var p in Pushers(Find.CurrentMap))
+                Log.Message($"[CB] {Describe(p)} tabs=[{string.Join(", ", p.GetInspectTabs()?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
+        }
+
+        [DebugAction(Cat, "Destroy pushers", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void DestroyPushers()
+        {
+            foreach (var p in Pushers(Find.CurrentMap))
+            {
+                Log.Message($"[CB] destroying {Describe(p)}");
+                p.Destroy(DestroyMode.Vanish);
+            }
+        }
+
+        /// <summary>Clicks (runs the action of) the first port's Copy gizmo, then every other same-kind port's Paste gizmo.</summary>
+        [DebugAction(Cat, "Test: copy first port's settings, paste on the rest", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void CopyPasteGizmos()
+        {
+            var map = Find.CurrentMap;
+            foreach (var group in new[] { Pushers(map).Cast<Building>().ToList(), OutputPorts(map).Cast<Building>().ToList() })
+            {
+                if (group.Count < 2) continue;
+                Command_Action Gizmo(Building b, string key)
+                    => b.GetGizmos().OfType<Command_Action>().FirstOrDefault(g => g.defaultLabel == key.Translate());
+                Gizmo(group[0], "CB_CopyMode")?.action();
+                foreach (var b in group.Skip(1))
+                {
+                    var paste = Gizmo(b, "CB_PasteMode");
+                    Log.Message($"[CB] paste gizmo on {b}: {(paste == null ? "missing" : "run")}");
+                    paste?.action();
+                }
+            }
+            foreach (var p in Pushers(map)) Log.Message($"[CB] {Describe(p)}");
+            foreach (var p in OutputPorts(map)) Log.Message($"[CB] {Describe(p)}");
+        }
+
+        [DebugAction(Cat, "Select first pusher and open Port tab", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void OpenPusherTab()
+        {
+            var p = Pushers(Find.CurrentMap).FirstOrDefault();
+            if (p == null) { Log.Warning("[CB] no pusher"); return; }
+            Find.Selector.ClearSelection();
+            Find.Selector.Select(p, playSound: false);
+            PortGizmos.OpenPortTab();
             var pane = (MainTabWindow_Inspect)MainButtonDefOf.Inspect.TabWindow;
             Find.CameraDriver.SetRootPosAndSize(p.Position.ToVector3Shifted(), 8f);
             Log.Message($"[CB] selected {p}; openTab={pane.OpenTabType?.Name ?? "none"} curTabs=[{string.Join(", ", pane.CurTabs?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
