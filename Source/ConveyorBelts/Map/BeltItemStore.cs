@@ -7,12 +7,26 @@ namespace ConveyorBelts
     /// Off-map owner of every Thing riding a belt. Things here are never spawned, so they are not
     /// haulable and not in the resource counter. The handle of a thing is its thingIDNumber.
     /// The store is deliberately not reported by Map.GetChildHolders (belt items are not colony wealth in v1).
+    /// A stored thing that leaves the owner other than through Take (it was destroyed: rotted away, damage...)
+    /// is recorded in <see cref="Orphans"/> so the map component can drop its sim item.
     /// </summary>
-    public class BeltItemStore : IThingHolder, IExposable
+    public class BeltItemStore : IThingHolder, IThingHolderEvents<Thing>, IExposable
     {
         public ThingOwner<Thing> things;
         readonly Map map;
         readonly Dictionary<long, Thing> index = new Dictionary<long, Thing>();
+        bool removing;   // set while the store itself removes a thing (Take / Split)
+
+        /// <summary>Handles of things that left the store without Take (destroyed). Consumed by MapComponent_Belts.</summary>
+        public readonly HashSet<long> Orphans = new HashSet<long>();
+
+        public void Notify_ItemAdded(Thing item) { }
+
+        public void Notify_ItemRemoved(Thing item)
+        {
+            index.Remove(item.thingIDNumber);
+            if (!removing) Orphans.Add(item.thingIDNumber);
+        }
 
         public BeltItemStore(Map map)
         {
@@ -51,7 +65,8 @@ namespace ConveyorBelts
         {
             var t = Get(handle);
             if (t == null) return null;
-            things.Remove(t);
+            removing = true;
+            try { things.Remove(t); } finally { removing = false; }
             index.Remove(handle);
             return t;
         }
@@ -65,7 +80,9 @@ namespace ConveyorBelts
             var t = Get(handle);
             if (t == null) { Log.Error($"[CB] Split: no stored thing for handle {handle}"); return -1; }
             if (count >= t.stackCount) Log.Error($"[CB] Split {count} of {t} (stack {t.stackCount}): nothing would remain");
-            var piece = t.SplitOff(count);
+            Thing piece;
+            removing = true;
+            try { piece = t.SplitOff(count); } finally { removing = false; }
             if (piece == t) { things.TryAdd(t, canMergeWithExistingStacks: false); return handle; }
             return Add(piece);
         }

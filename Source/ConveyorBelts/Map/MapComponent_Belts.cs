@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ConveyorBelts.Sim;
 using RimWorld;
+using UnityEngine;
 using Verse;
 
 namespace ConveyorBelts
@@ -83,33 +84,55 @@ namespace ConveyorBelts
         public override void MapComponentTick()
         {
             if (deferredItems != null) RestoreDeferred();
+            CB_DebugActions.ApplyHeldTemperature(map);   // test-only; no-op unless a debug action set it
+            if (Store.Orphans.Count > 0) PurgeOrphans();
             if (Sim.BeltCount > 0) Sim.Tick();
             if (Find.TickManager.TicksGame % RotInterval == 0 && Store.Count > 0) TickRot();
         }
 
+        readonly List<(Cell Cell, long Handle)> rotScratch = new List<(Cell, long)>();
+
+        /// <summary>
+        /// Vanilla CompRottable.TickInterval, but at the temperature of the belt cell the item sits on
+        /// (an unspawned thing would otherwise use the world tile's temperature). The vanilla "rotted away in
+        /// storage" message and rot-stink gas only apply to spawned things, so they are skipped here as vanilla
+        /// would. Runs outside Sim.Tick; things destroyed here are removed from the sim in the same pass.
+        /// </summary>
         void TickRot()
         {
-            bool anyGone = false;
-            var list = Store.things.InnerListForReading;
-            for (int i = list.Count - 1; i >= 0; i--)
+            rotScratch.Clear();
+            foreach (var (cell, item) in Sim.AllItems()) rotScratch.Add((cell, item.Handle));
+            foreach (var (cell, handle) in rotScratch)
             {
-                if (i >= list.Count) continue;   // a destroyed thing removes itself from the owner
-                var t = list[i];
-                var rot = t.TryGetComp<CompRottable>();
-                if (rot == null) continue;
-                rot.CompTickInterval(RotInterval);
-                if (t.Destroyed) anyGone = true;
+                var t = Store.Get(handle);
+                var rot = t?.TryGetComp<CompRottable>();
+                if (rot == null || !rot.Active) continue;
+                float temp = GenTemperature.GetTemperatureForCell(cell.ToIntVec3(), map);
+                float before = rot.RotProgress;
+                rot.RotProgress += GenTemperature.RotRateAtTemperature(temp) * RotInterval;
+                if (rot.Stage == RotStage.Rotting && rot.PropsRot.rotDestroys)
+                {
+                    t.Destroy();
+                }
+                else if (Mathf.FloorToInt(before / 60000f) != Mathf.FloorToInt(rot.RotProgress / 60000f))
+                {
+                    if (rot.Stage == RotStage.Rotting && rot.PropsRot.rotDamagePerDay > 0f)
+                        t.TakeDamage(new DamageInfo(DamageDefOf.Rotting, GenMath.RoundRandom(rot.PropsRot.rotDamagePerDay)));
+                    else if (rot.Stage == RotStage.Dessicated && rot.PropsRot.dessicatedDamagePerDay > 0f)
+                        t.TakeDamage(new DamageInfo(DamageDefOf.Rotting, GenMath.RoundRandom(rot.PropsRot.dessicatedDamagePerDay)));
+                }
             }
-            if (anyGone) PurgeMissingItems();
+            if (Store.Orphans.Count > 0) PurgeOrphans();
         }
 
-        /// <summary>Removes sim items whose thing no longer exists in the store (rotted away etc.).</summary>
-        void PurgeMissingItems()
+        /// <summary>Removes the sim items of stored things that were destroyed (never call from inside Sim.Tick).</summary>
+        void PurgeOrphans()
         {
             var gone = new List<(Cell, long)>();
             foreach (var (cell, item) in Sim.AllItems())
-                if (Store.Get(item.Handle) == null) gone.Add((cell, item.Handle));
+                if (Store.Orphans.Contains(item.Handle)) gone.Add((cell, item.Handle));
             foreach (var (cell, handle) in gone) Sim.TryRemoveItem(cell, handle, out _);
+            Store.Orphans.Clear();
         }
 
         public override void MapComponentDraw()
