@@ -81,7 +81,7 @@ namespace ConveyorBelts
             if (buffer == null || !Spawned) return;
             if (buffer.Destroyed) { buffer = null; return; }
             var front = FrontCell;
-            if (front.InBounds(Map)) GenPlace.TryPlaceThing(buffer, front, Map, ThingPlaceMode.Direct);
+            if (front.InBounds(Map) && front.Walkable(Map)) GenPlace.TryPlaceThing(buffer, front, Map, ThingPlaceMode.Direct);
             if (Placed()) return;
             if (fullMode == OutputFullMode.Spill)
             {
