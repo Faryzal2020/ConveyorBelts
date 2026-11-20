@@ -396,6 +396,12 @@ belt state); those go in the harness repo, not this mod.
 
 ## 8. Risks
 1. **Rendering on Waylith** (unknown speed/behaviour of immediate-mode drawing) → M1 spike first.
+   **RESOLVED (2026-11-20, Task 2 spike): PASS.** 500 unspawned steel stacks (count 10) drawn each frame with
+   `thing.DrawNowAt(Vector3)` around a 20x20 loop at 3 tiles/s, speed 3, windowed 1280x720 (2880x1800 capture).
+   Measured draw cost (Stopwatch around the loop, avg over 300 frames): `MapComponentUpdate` 0.13-0.19 ms,
+   `MapComponentDraw` 0.12-0.20 ms; limit was 2 ms. Items render and move across the screenshot sequence with
+   both hooks, no errors logged. **Chosen hook: `MapComponentDraw`** (equal cost; the correct phase). The fallback
+   (cached material + batched meshes) is NOT needed for v1. Note: items under roofed/fogged rock are hidden as usual.
 2. **Replace behaviour for non-edifices** is read from code, not yet tested: confirm in M7 that the
    blueprint can be placed over the old belt, the old belt survives the frame stage, and the spawn hook
    swaps cleanly.
