@@ -65,4 +65,6 @@
   <CB_DowngradeTo>Downgrade to {0}</CB_DowngradeTo>
   <CB_ChangeTierDesc>Plan a {0} belt over each selected belt, keeping its direction. The old belt keeps moving items until the new one is built; then it is removed with the usual deconstruction refund, and the items on it stay.</CB_ChangeTierDesc>
   <CB_BeingUpgraded>Planned to be replaced by a {0}. Cancel that plan to deconstruct this belt.</CB_BeingUpgraded>
+  <CB_HaulFromBelt>Haul {0} to stockpile</CB_HaulFromBelt>
+  <CB_PickUpFromBelt>Pick up {0}</CB_PickUpFromBelt>
 </LanguageData>

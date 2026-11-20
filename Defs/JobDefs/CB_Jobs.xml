@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <!-- targetA = belt cell, count = item handle (thingIDNumber). Belt items are off-map, so these only run on explicit orders. -->
+  <JobDef>
+    <defName>CB_HaulFromBelt</defName>
+    <driverClass>ConveyorBelts.JobDriver_TakeFromBelt</driverClass>
+    <reportString>taking TargetA from belt.</reportString>
+    <suspendable>false</suspendable>
+  </JobDef>
+  <JobDef>
+    <defName>CB_PickUpFromBelt</defName>
+    <driverClass>ConveyorBelts.JobDriver_TakeFromBelt</driverClass>
+    <reportString>taking TargetA from belt.</reportString>
+    <suspendable>false</suspendable>
+  </JobDef>
+</Defs>

@@ -426,5 +426,40 @@ namespace ConveyorBelts
             foreach (var b in belts) sum += b.Position.ToVector3Shifted();
             Find.CameraDriver.SetRootPosAndSize(sum / belts.Count, 6f);
         }
+
+        [DebugAction(Cat, "Test: list belt float menu options at first item cell", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void TestListFloatMenu()
+        {
+            var map = Find.CurrentMap;
+            var comp = MapComponent_Belts.For(map);
+            var pawn = map.mapPawns.FreeColonistsSpawned.FirstOrDefault();
+            var first = comp.Sim.AllItems().OrderBy(x => x.Cell.X).ThenBy(x => x.Cell.Z).Cast<(Cell Cell, BeltItem Item)?>().FirstOrDefault();
+            if (pawn == null || first == null) { Log.Warning("[CB] float menu test: need a colonist and a belt item"); return; }
+            var cell = first.Value.Cell.ToIntVec3();
+            Log.Message($"[CB] float menu test: pawn={pawn.LabelShort} cell={cell}");
+            foreach (var o in FloatMenuOptionProvider_TakeFromBelt.BuildOptions(pawn, map, cell))
+                Log.Message($"[CB]   direct option: {o.Label}");
+            var real = FloatMenuMakerMap.GetOptions(new List<Pawn> { pawn }, cell.ToVector3Shifted(), out _);
+            foreach (var o in real)
+                if (o.Label.Contains("stockpile") || o.Label.StartsWith("Pick up"))
+                    Log.Message($"[CB]   vanilla pipeline option: {o.Label}");
+        }
+
+        [DebugAction(Cat, "Test: steel totals (belts, ground, pawn inventories)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void TestSteelTotals()
+        {
+            var map = Find.CurrentMap;
+            var comp = MapComponent_Belts.For(map);
+            int belt = 0, ground = 0, inv = 0;
+            foreach (var (_, item) in comp.Sim.AllItems()) { var t = comp.Store.Get(item.Handle); if (t?.def == ThingDefOf.Steel) belt += t.stackCount; }
+            foreach (var t in map.listerThings.ThingsOfDef(ThingDefOf.Steel)) ground += t.stackCount;
+            foreach (var p in map.mapPawns.FreeColonistsSpawned)
+            {
+                int n = p.inventory.innerContainer.TotalStackCountOfDef(ThingDefOf.Steel);
+                if (n > 0) Log.Message($"[CB]   {p.LabelShort} (id {p.thingIDNumber}) carries {n} steel in inventory");
+                inv += n;
+            }
+            Log.Message($"[CB] steel totals: belt={belt} ground={ground} inventory={inv}");
+        }
     }
 }
