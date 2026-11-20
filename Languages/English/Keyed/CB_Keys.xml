@@ -67,4 +67,6 @@
   <CB_BeingUpgraded>Planned to be replaced by a {0}. Cancel that plan to deconstruct this belt.</CB_BeingUpgraded>
   <CB_HaulFromBelt>Haul {0} to stockpile</CB_HaulFromBelt>
   <CB_PickUpFromBelt>Pick up {0}</CB_PickUpFromBelt>
+  <CB_CannotHaul>Cannot haul {0}: incapable of hauling</CB_CannotHaul>
+  <CB_CannotPickUp>Cannot pick up {0}</CB_CannotPickUp>
 </LanguageData>

@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using RimWorld;
+using UnityEngine;
 using Verse;
 using Verse.AI;
 
@@ -39,15 +40,25 @@ namespace ConveyorBelts
 
             if (job.def == CB_JobDefOf.CB_PickUpFromBelt)
             {
-                pawn.inventory.innerContainer.TryAdd(thing);
-                if (!thing.Destroyed && thing.holdingOwner == null)
-                    Drop(thing, map);   // no room in inventory: never lose the item
+                // Vanilla caps pick-ups by carrying capacity: take what fits, the rest becomes a normal loose item.
+                int fit = Mathf.Clamp(MassUtility.CountToPickUpUntilOverEncumbered(pawn, thing), 0, thing.stackCount);
+                Thing part = fit >= thing.stackCount ? thing : fit > 0 ? thing.SplitOff(fit) : null;
+                if (part != null)
+                {
+                    pawn.inventory.innerContainer.TryAdd(part);
+                    if (!part.Destroyed && part.holdingOwner == null) Drop(part, map);   // never lose the item
+                }
+                if (part != thing && !thing.Destroyed && thing.holdingOwner == null) Drop(thing, map);
                 return;
             }
 
             Thing placed = Drop(thing, map);
             if (placed != null && placed.Spawned)
-                pawn.jobs.jobQueue.EnqueueFirst(HaulAIUtility.HaulToStorageJob(pawn, placed, forced: true));
+            {
+                // null when storage filled / became forbidden before arrival: the item just stays on the ground.
+                Job haul = HaulAIUtility.HaulToStorageJob(pawn, placed, forced: true);
+                if (haul != null) pawn.jobs.jobQueue.EnqueueFirst(haul);
+            }
         }
 
         Thing Drop(Thing thing, Map map)

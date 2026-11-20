@@ -38,12 +38,17 @@ namespace ConveyorBelts
                 string label = thing.LabelCap;
                 long h = handle;
 
-                if (StoreUtility.TryFindBestBetterStoreCellFor(thing, pawn, map, StoragePriority.Unstored, pawn.Faction, out _))
+                if (pawn.WorkTypeIsDisabled(WorkTypeDefOf.Hauling))
+                    yield return new FloatMenuOption("CB_CannotHaul".Translate(label), null);
+                else if (StoreUtility.TryFindBestBetterStoreCellFor(thing, pawn, map, StoragePriority.Unstored, pawn.Faction, out _))
                     yield return new FloatMenuOption("CB_HaulFromBelt".Translate(label),
                         () => Order(pawn, CB_JobDefOf.CB_HaulFromBelt, cell, h), MenuOptionPriority.High);
 
-                yield return new FloatMenuOption("CB_PickUpFromBelt".Translate(label),
-                    () => Order(pawn, CB_JobDefOf.CB_PickUpFromBelt, cell, h), MenuOptionPriority.Default);
+                if (MassUtility.WillBeOverEncumberedAfterPickingUp(pawn, thing, 1))
+                    yield return new FloatMenuOption("CB_CannotPickUp".Translate(label) + ": " + "TooHeavy".Translate(), null);
+                else
+                    yield return new FloatMenuOption("CB_PickUpFromBelt".Translate(label),
+                        () => Order(pawn, CB_JobDefOf.CB_PickUpFromBelt, cell, h), MenuOptionPriority.Default);
             }
         }
 

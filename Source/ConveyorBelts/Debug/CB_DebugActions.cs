@@ -438,10 +438,10 @@ namespace ConveyorBelts
             var cell = first.Value.Cell.ToIntVec3();
             Log.Message($"[CB] float menu test: pawn={pawn.LabelShort} cell={cell}");
             foreach (var o in FloatMenuOptionProvider_TakeFromBelt.BuildOptions(pawn, map, cell))
-                Log.Message($"[CB]   direct option: {o.Label}");
+                Log.Message($"[CB]   direct option: {o.Label} (disabled={o.Disabled})");
             var real = FloatMenuMakerMap.GetOptions(new List<Pawn> { pawn }, cell.ToVector3Shifted(), out _);
             foreach (var o in real)
-                if (o.Label.Contains("stockpile") || o.Label.StartsWith("Pick up"))
+                if (o.Label.Contains("stockpile") || o.Label.StartsWith("Pick up") || o.Label.StartsWith("Cannot"))
                     Log.Message($"[CB]   vanilla pipeline option: {o.Label}");
         }
 
@@ -460,6 +460,45 @@ namespace ConveyorBelts
                 inv += n;
             }
             Log.Message($"[CB] steel totals: belt={belt} ground={ground} inventory={inv}");
+        }
+
+        [DebugAction(Cat, "Test: seed 75 steel on first belt", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void Seed75Steel()
+        {
+            var map = Find.CurrentMap;
+            var first = Belts(map).FirstOrDefault();
+            if (first == null) { Log.Warning("[CB] no belts"); return; }
+            var t = ThingMaker.MakeThing(ThingDefOf.Steel);
+            t.stackCount = 75;
+            bool ok = MapComponent_Belts.For(map).TryPutOnBelt(first.Position, first.Rotation.Opposite, t);
+            if (!ok) t.Destroy();
+            Log.Message($"[CB] seed Steel x75 on {first.Position} ({first.def.defName}) id={t.thingIDNumber}: {(ok ? "ok" : "refused")}");
+        }
+
+        [DebugAction(Cat, "Test: destroy all shelves", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void DestroyShelves()
+        {
+            var shelves = Find.CurrentMap.listerThings.AllThings.Where(t => t.def.defName == "Shelf").ToList();
+            foreach (var t in shelves) t.Destroy();
+            Log.Message($"[CB] destroyed {shelves.Count} shelves");
+        }
+
+        [DebugAction(Cat, "Test: disable Hauling on first colonist", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void DisableHauling()
+        {
+            var pawn = Find.CurrentMap.mapPawns.FreeColonistsSpawned.First();
+            pawn.WorkTypeIsDisabled(WorkTypeDefOf.Hauling);   // builds the caches
+            var f = typeof(Pawn).GetField("cachedDisabledWorkTypes", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            var list = (List<WorkTypeDef>)f.GetValue(pawn);
+            if (!list.Contains(WorkTypeDefOf.Hauling)) list.Add(WorkTypeDefOf.Hauling);
+            Log.Message($"[CB] {pawn.LabelShort} (id {pawn.thingIDNumber}) hauling disabled={pawn.WorkTypeIsDisabled(WorkTypeDefOf.Hauling)}");
+        }
+
+        [DebugAction(Cat, "Test: log colonist carry capacity", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void LogCapacity()
+        {
+            foreach (var p in Find.CurrentMap.mapPawns.FreeColonistsSpawned)
+                Log.Message($"[CB] {p.LabelShort} (id {p.thingIDNumber}) capacity={MassUtility.Capacity(p):0.0}kg used={MassUtility.GearAndInventoryMass(p):0.0}kg steel-fit={MassUtility.CountToPickUpUntilOverEncumbered(p, ThingMaker.MakeThing(ThingDefOf.Steel))}");
         }
     }
 }
