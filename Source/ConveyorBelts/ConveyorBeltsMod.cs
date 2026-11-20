@@ -7,6 +7,7 @@ namespace ConveyorBelts
     {
         public ConveyorBeltsMod(ModContentPack content) : base(content)
         {
+            new HarmonyLib.Harmony("faryzal2020.conveyorbelts").PatchAll(typeof(ConveyorBeltsMod).Assembly);
             Log.Message("[ConveyorBelts] loaded v1");
         }
     }

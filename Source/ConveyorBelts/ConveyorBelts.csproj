@@ -25,6 +25,8 @@
     <GameManaged Condition="'$(GameManaged)' == '' and Exists('$(GameRoot)/RimWorldWin64_Data/Managed/Assembly-CSharp.dll')">$(GameRoot)/RimWorldWin64_Data/Managed</GameManaged>
     <GameManaged Condition="'$(GameManaged)' == '' and Exists('$(GameRoot)/RimWorldLinux_Data/Managed/Assembly-CSharp.dll')">$(GameRoot)/RimWorldLinux_Data/Managed</GameManaged>
     <GameManaged Condition="'$(GameManaged)' == ''">$(GameRoot)/RimWorld.app/Contents/MacOS</GameManaged>
+    <WorkshopRoot Condition="'$(WorkshopRoot)' == ''">$(GameRoot)/../../workshop/content/294100</WorkshopRoot>
+    <HarmonyDll>$(WorkshopRoot)/2009463077/1.7/Assemblies/0Harmony.dll</HarmonyDll>
   </PropertyGroup>
 
   <ItemGroup Condition="Exists('$(GameManaged)/Assembly-CSharp.dll')">
@@ -35,6 +37,13 @@
   </ItemGroup>
   <ItemGroup Condition="Exists('$(GameManaged)/Brutal.Core.Maths.dll')">
     <Reference Include="Brutal.Core.Maths"><HintPath>$(GameManaged)/Brutal.Core.Maths.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+  <!-- Harmony: the exact 1.7 runtime build from the Harmony workshop mod when installed, else NuGet (compile only). -->
+  <ItemGroup Condition="Exists('$(HarmonyDll)')">
+    <Reference Include="0Harmony"><HintPath>$(HarmonyDll)</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('$(HarmonyDll)')">
+    <PackageReference Include="Lib.Harmony" Version="2.3.3" ExcludeAssets="runtime" />
   </ItemGroup>
   <ItemGroup Condition="!Exists('$(GameManaged)/Assembly-CSharp.dll')">
     <PackageReference Include="Krafs.Rimworld.Ref" Version="1.7.4979-alpha" />

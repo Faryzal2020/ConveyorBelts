@@ -7,5 +7,14 @@
     <li>1.7</li>
   </supportedVersions>
   <description>Powered conveyor belts that move items between input, pusher and output ports.</description>
-  <modDependencies />
+  <modDependencies>
+    <li>
+      <packageId>brrainz.harmony</packageId>
+      <displayName>Harmony</displayName>
+      <steamWorkshopUrl>steam://url/CommunityFilePage/2009463077</steamWorkshopUrl>
+    </li>
+  </modDependencies>
+  <loadAfter>
+    <li>brrainz.harmony</li>
+  </loadAfter>
 </ModMetaData>

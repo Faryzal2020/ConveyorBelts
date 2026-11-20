@@ -1,12 +1,13 @@
 # Conveyor Belts
 
-RimWorld 1.7 mod (Core only, no Harmony). Powered conveyor belts move item stacks between ports, with per-tile item simulation kept off the map (belt items are not spawned things).
+RimWorld 1.7 mod (Core only; requires Harmony). Powered conveyor belts move item stacks between ports, with per-tile item simulation kept off the map (belt items are not spawned things).
 
 packageId `faryzal2020.conveyorbelts`, author visiadidaya. Architect tab: **conveyors**.
 
 ## What it does
 
 - Draw a belt path with two clicks (start, end); the path is laid as belts with arrows. Right-click the belt ghost to cancel.
+- Belts are surface-only: nothing else can be built on a belt cell except a higher or lower belt tier, a floor, or a wall-mounted item such as a wall lamp ("Remove the belt first"). Belts can't be laid over other buildings either.
 - A **belt motor** built on any free cell next to a line (beside it, behind its first tile, or past its last tile) turns to face that belt and drives the whole line while powered. No power or no motor: the line stops and items stay where they are. Motors and ports cannot be built on a belt cell ("Remove the belt first").
 - **Input ports** take items that haulers bring (filtered in the Port tab) and put them on adjacent belts.
 - **Pusher ports** push what a belt delivers into the machine they face (storage, fuel users, fermenting barrels, construction frames).
@@ -66,16 +67,17 @@ Item totals are steel on belts + on the ground + in inventories (+ port buffers 
 | Motor destroyed mid-flow | belt 40 | items frozen at identical progress after 120 ticks, belt 40 |
 | Belt in front of motor destroyed | belt 40 | motor "No belt in front", 5 W; remaining line frozen, belt 40 |
 | Upgrade mid-flow (2 fast + 1 express swapped in place, god mode) | belt 40, ground 1170 | belt 40, ground 1171 (refund), motor 85 W (= 20 + 5x5 + 2x10 + 20) |
-| Earlier tasks | closed ring, head-on belts, item gone before pawn arrives, upgrade frame across save/load: see `.superpowers/sdd/.../task-*-report.md` | |
+| Earlier tasks | closed ring, head-on belts, item gone before pawn arrives, upgrade frame across save/load (see the git history) | |
+| Surface rule (2026-11-21) | belt line, wall north of its last tile | wall, power conduit, motor, input port refused on belt cells; fast-belt upgrade and wall lamp accepted; wall on a free cell accepted |
+| Wealth (2026-11-21) | 6 stacks of 5 steel seeded on belts | item wealth +57.0 (= 30 x 1.9); unchanged while 600 ticks moved stacks into a full Output Port's buffer |
 
 ## Known limits
 
-- Belt items and port buffers are not counted in colony wealth or the resource readout.
+- Belt items and port buffers are not shown in the resource readout (they do count toward colony wealth).
 - Port buffers (output / pusher) do not rot while held.
 - A downgrade keeps stacks larger than the new tier's limit on that cell.
 - Pawns may haul an Output Port's drops back into an Input Port whose filter allows them; choose filters to avoid loops.
 - No splitters, filters on belts, or merging priorities beyond round-robin.
-- Walls and doors (and other vanilla buildings) can be built over a belt; blocking that needs Harmony. Motors and ports are refused there.
 - Belt items don't deteriorate outdoors, and item comps other than rotting (for example egg hatching) are paused while an item is on a belt.
 - Input ports only fill gaps in a busy line: the belt simulation ticks before buildings, so items already on the belt take the free space first.
 - An idle motor re-faces another adjacent belt when its belt is removed, and doesn't turn back on its own when the belt is rebuilt (use Rotate motor).

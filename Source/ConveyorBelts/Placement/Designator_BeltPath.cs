@@ -87,18 +87,6 @@ namespace ConveyorBelts
 
         static Building_Belt BeltAt(IntVec3 c, Map map) => BeltGizmos.BeltAt(c, map);
 
-        /// <summary>Walls, motors, ports, doors, rock (or plans for them) block belts (spec §5.2).</summary>
-        static bool BlockedByEdifice(IntVec3 c, Map map)
-        {
-            if (c.GetEdifice(map) != null) return true;
-            var list = c.GetThingList(map);
-            for (int i = 0; i < list.Count; i++)
-            {
-                var t = list[i];
-                if ((t.def.IsBlueprint || t.def.IsFrame) && t.def.entityDefToBuild is ThingDef td && td.IsEdifice()) return true;
-            }
-            return false;
-        }
 
         /// <summary>A blueprint or frame of this belt def with this rotation already on the cell.</summary>
         bool AlreadyPlanned(IntVec3 c, Rot4 rot)
@@ -121,7 +109,9 @@ namespace ConveyorBelts
             if (belt != null && belt.def == beltDef)
                 return belt.Rotation == rot ? TileAction.Skip : TileAction.Reorient;
             if (AlreadyPlanned(c, rot)) return TileAction.Skip;
-            if (BlockedByEdifice(c, map)) return TileAction.Refused;
+            // Any other building or plan (walls, conduits, furniture, motors, ports, rock) blocks a belt; wall
+            // attachments and floors may share the cell (BeltCellRules).
+            if (BeltCellRules.HasBlockerForBelt(c, map)) return TileAction.Refused;
             // godMode false keeps the "space occupied" checks; god mode still ignores the no-build edge.
             var report = GenConstruct.CanPlaceBlueprintAt(beltDef, c, rot, map, godMode: false, ignoreEdgeArea: DebugSettings.godMode);
             if (!report.Accepted) return TileAction.Refused;

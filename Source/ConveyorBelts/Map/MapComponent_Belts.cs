@@ -72,6 +72,34 @@ namespace ConveyorBelts
 
         public static MapComponent_Belts For(Map map) => map?.GetComponent<MapComponent_Belts>();
 
+        /// <summary>
+        /// Market value of everything this mod holds off-map on this map: items on belts plus Output/Pusher port
+        /// buffers. Fogged cells are skipped, like vanilla item wealth. Called by Patch_WealthItems.
+        /// </summary>
+        public float HeldItemsWealth()
+        {
+            float sum = 0f;
+            foreach (var (cell, item) in Sim.AllItems())
+            {
+                var c = cell.ToIntVec3();
+                if (c.Fogged(map)) continue;
+                var t = Store.Get(item.Handle);
+                if (t != null) sum += t.MarketValue * t.stackCount;
+            }
+            var buildings = map.listerBuildings.allBuildingsColonist;
+            for (int i = 0; i < buildings.Count; i++)
+            {
+                Thing buffer = buildings[i] switch
+                {
+                    Building_OutputPort o => o.Buffer,
+                    Building_PusherPort p => p.Buffer,
+                    _ => null,
+                };
+                if (buffer != null && !buildings[i].Position.Fogged(map)) sum += buffer.MarketValue * buffer.stackCount;
+            }
+            return sum;
+        }
+
         long IBeltHost.Split(long handle, int count) => Store.Split(handle, count);
 
         /// <summary>Puts t on the belt entering through fromSide. On refusal t is left untouched and unstored.</summary>

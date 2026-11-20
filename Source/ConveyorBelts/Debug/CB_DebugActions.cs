@@ -33,6 +33,14 @@ namespace ConveyorBelts
             Log.Message($"[CB] seeded {added} steel stacks");
         }
 
+        [DebugAction(Cat, "Test: wealth report", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void WealthReport()
+        {
+            var map = Find.CurrentMap;
+            map.wealthWatcher.ForceRecount();
+            Log.Message($"[CB] wealth items={map.wealthWatcher.WealthItems:F1} belt+buffers={MapComponent_Belts.For(map).HeldItemsWealth():F1}");
+        }
+
         [DebugAction(Cat, "Seed raw meat on first belt", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void SeedRawMeat()
         {
