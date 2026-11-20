@@ -178,6 +178,82 @@ namespace ConveyorBelts
             Log.Message($"[CB] requireMotors={comp.Sim.RequireMotors}");
         }
 
+        // ---- Input port / Port tab (call the same operations the tab's widgets call) ----
+
+        static List<Building_InputPort> InputPorts(Map map)
+            => map.listerThings.AllThings.OfType<Building_InputPort>().OrderBy(p => p.thingIDNumber).ToList();
+
+        static string Describe(Building_InputPort p)
+        {
+            var sec = p.FilterSection;
+            var held = p.HeldThing;
+            return $"port {p.thingIDNumber} at {p.Position}: priority={sec.Priority} allowed=[{string.Join(", ", sec.AllowedDefs().Select(d => d.defName))}] " +
+                   $"held={(held == null ? "none" : held.def.defName + " x" + held.stackCount)} powered={p.Powered}";
+        }
+
+        [DebugAction(Cat, "Allow steel on all input ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void AllowSteelOnPorts()
+        {
+            foreach (var p in InputPorts(Find.CurrentMap))
+            {
+                bool ok = p.FilterSection.Allow(ThingDefOf.Steel);
+                Log.Message($"[CB] allow Steel: {ok}; {Describe(p)}");
+            }
+        }
+
+        [DebugAction(Cat, "Remove steel from all input ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void RemoveSteelFromPorts()
+        {
+            foreach (var p in InputPorts(Find.CurrentMap))
+            {
+                p.FilterSection.Disallow(ThingDefOf.Steel);
+                Log.Message($"[CB] remove Steel; {Describe(p)}");
+            }
+        }
+
+        [DebugAction(Cat, "Cycle input port priority", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void CyclePortPriority()
+        {
+            foreach (var p in InputPorts(Find.CurrentMap))
+            {
+                var sec = p.FilterSection;
+                var next = sec.Priority >= StoragePriority.Critical ? StoragePriority.Low : sec.Priority + 1;
+                sec.SetPriority(next);
+                Log.Message($"[CB] priority -> {next}; {Describe(p)}");
+            }
+        }
+
+        [DebugAction(Cat, "Log input ports and search", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void LogPorts()
+        {
+            foreach (var p in InputPorts(Find.CurrentMap))
+            {
+                Log.Message($"[CB] {Describe(p)}");
+                Log.Message($"[CB]   tabs=[{string.Join(", ", p.GetInspectTabs()?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
+                foreach (var q in new[] { "ste", "STEEL", "zzzz", "" })
+                {
+                    var res = p.FilterSection.Search(q, Section_InputFilter.MaxSearchResults, out int total);
+                    Log.Message($"[CB]   search '{q}': total={total} shown={res.Count} [{string.Join(", ", res.Select(d => d.label))}]");
+                }
+                var wide = p.FilterSection.Search("a", Section_InputFilter.MaxSearchResults, out int wideTotal);
+                Log.Message($"[CB]   search 'a': total={wideTotal} shown={wide.Count}");
+            }
+        }
+
+        [DebugAction(Cat, "Select first input port and open Port tab", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void OpenPortTab()
+        {
+            var p = InputPorts(Find.CurrentMap).FirstOrDefault();
+            if (p == null) { Log.Warning("[CB] no input port"); return; }
+            Find.Selector.ClearSelection();
+            Find.Selector.Select(p, playSound: false);
+            p.FilterSection.SearchText = "ste";   // what a player would type; the screenshot shows the matches
+            Building_InputPort.OpenPortTab();
+            var pane = (MainTabWindow_Inspect)MainButtonDefOf.Inspect.TabWindow;
+            Find.CameraDriver.SetRootPosAndSize(p.Position.ToVector3Shifted(), 8f);
+            Log.Message($"[CB] selected {p}; openTab={pane.OpenTabType?.Name ?? "none"} curTabs=[{string.Join(", ", pane.CurTabs?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
+        }
+
         [DebugAction(Cat, "Focus camera on belts", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void FocusCamera()
         {

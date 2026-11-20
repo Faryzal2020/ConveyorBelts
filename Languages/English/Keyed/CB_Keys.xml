@@ -12,4 +12,17 @@
   <CB_MotorDriving>Driving {0} tiles, {1} W</CB_MotorDriving>
   <CB_MotorStandby>Line already driven</CB_MotorStandby>
   <CB_MotorIdle>No belt in front</CB_MotorIdle>
+  <CB_TabPort>Port</CB_TabPort>
+  <CB_ConfigureItems>Configure items</CB_ConfigureItems>
+  <CB_ConfigureItemsDesc>Open the Port tab to choose which items haulers bring to this port.</CB_ConfigureItemsDesc>
+  <CB_HaulPriority>Haul priority:</CB_HaulPriority>
+  <CB_AllowedItems>Allowed items ({0})</CB_AllowedItems>
+  <CB_NoItemsAllowed>Nothing yet: search below to add items.</CB_NoItemsAllowed>
+  <CB_RemoveItem>Stop hauling {0} here</CB_RemoveItem>
+  <CB_AddLabel>Add:</CB_AddLabel>
+  <CB_AddItem>Allow {0}</CB_AddItem>
+  <CB_SearchHint>Type part of an item name.</CB_SearchHint>
+  <CB_SearchNoMatch>No matching items.</CB_SearchNoMatch>
+  <CB_SearchMore>{0} more: type more to narrow the list.</CB_SearchMore>
+  <CB_PortNotFeeding>Not feeding belts: no power.</CB_PortNotFeeding>
 </LanguageData>

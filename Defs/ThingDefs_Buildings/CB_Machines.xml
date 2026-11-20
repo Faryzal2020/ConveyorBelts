@@ -44,4 +44,42 @@
       </li>
     </comps>
   </ThingDef>
+  <ThingDef ParentName="CB_MachineBase">
+    <defName>CB_InputPort</defName>
+    <label>input port</label>
+    <description>Holds one stack. Haulers bring it the items allowed in its Port tab (nothing by default). While powered it puts the stack onto adjacent belts that don't point into it, a belt's max stack at a time, taking turns between several belts. Draws 50 W.</description>
+    <thingClass>ConveyorBelts.Building_InputPort</thingClass>
+    <tickerType>Normal</tickerType>
+    <graphicData>
+      <texPath>ConveyorBelts/InputPort</texPath>
+    </graphicData>
+    <uiIconPath>ConveyorBelts/InputPort_north</uiIconPath>
+    <surfaceType>Item</surfaceType>
+    <inspectorTabs>
+      <li>ConveyorBelts.ITab_Port</li>
+    </inspectorTabs>
+    <building>
+      <maxItemsInCell>1</maxItemsInCell>
+      <preventDeteriorationOnTop>true</preventDeteriorationOnTop>
+      <storageGroupTag>CB_InputPort</storageGroupTag>
+      <fixedStorageSettings>
+        <filter>
+          <disallowNotEverStorable>true</disallowNotEverStorable>
+          <categories>
+            <li>Root</li>
+          </categories>
+        </filter>
+      </fixedStorageSettings>
+      <defaultStorageSettings>
+        <priority>Normal</priority>
+      </defaultStorageSettings>
+    </building>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>50</basePowerConsumption>
+        <shortCircuitInRain>false</shortCircuitInRain>
+      </li>
+    </comps>
+  </ThingDef>
 </Defs>

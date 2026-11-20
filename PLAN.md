@@ -407,6 +407,12 @@ belt state); those go in the harness repo, not this mod.
    swaps cleanly.
 3. **Hiding the vanilla Storage tab** on a `Building_Storage` subclass: if it can't be removed via the
    def's inspector tabs alone, it needs a small Harmony patch. Check in M5.
+   **RESOLVED (2026-11-20, Task 9): no Harmony needed.** In 1.7 `Building_Storage` adds no tab itself:
+   `Thing.GetInspectTabs()` returns `def.inspectorTabsResolved`, and `ITab_Storage` only comes from the def's
+   `inspectorTabs` (vanilla shelves inherit it from `ShelfBase`). `CB_InputPort` lists only `ConveyorBelts.ITab_Port`
+   (its parents `CB_MachineBase`/`BuildingBase` list none), so the inspect pane shows just "Port". Verified in game:
+   `GetInspectTabs()` = [ITab_Port], and a windowed screenshot shows only the Port tab button. The vanilla copy/paste
+   and link-settings gizmos stay (`storageGroupTag` `CB_InputPort`, so ports link only with ports).
 4. **Mod conflicts** with other mods touching designators or storage → low for v1; note in README.
 
 ---
