@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ModMetaData>
+  <name>Conveyor Belts</name>
+  <author>visiadidaya</author>
+  <packageId>faryzal2020.conveyorbelts</packageId>
+  <supportedVersions>
+    <li>1.7</li>
+  </supportedVersions>
+  <description>Powered conveyor belts that move items between input, pusher and output ports.</description>
+  <modDependencies />
+</ModMetaData>

@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- net10.0: RimWorld 1.7 runs on CoreCLR. References come from the installed game, else Krafs. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>ConveyorBelts</AssemblyName>
+    <RootNamespace>ConveyorBelts</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <AppendRuntimeIdentifierToOutputPath>false</AppendRuntimeIdentifierToOutputPath>
+    <OutputPath>..\..\Assemblies\</OutputPath>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
+    <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <DebugType>embedded</DebugType>
+    <DebugSymbols>true</DebugSymbols>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+    <NoWarn>$(NoWarn);CS1701;CS1702;CS8632</NoWarn>
+    <PathMap>$(MSBuildProjectDirectory)=ConveyorBelts</PathMap>
+    <GameRoot Condition="'$(GameRoot)' == ''">$(MSBuildProjectDirectory)/../../../..</GameRoot>
+    <GameManaged Condition="'$(GameManaged)' == '' and Exists('$(GameRoot)/RimWorld.app/Contents/MacOS/Assembly-CSharp.dll')">$(GameRoot)/RimWorld.app/Contents/MacOS</GameManaged>
+    <GameManaged Condition="'$(GameManaged)' == '' and Exists('$(GameRoot)/Assembly-CSharp.dll')">$(GameRoot)</GameManaged>
+    <GameManaged Condition="'$(GameManaged)' == '' and Exists('$(GameRoot)/RimWorldWin64_Data/Managed/Assembly-CSharp.dll')">$(GameRoot)/RimWorldWin64_Data/Managed</GameManaged>
+    <GameManaged Condition="'$(GameManaged)' == '' and Exists('$(GameRoot)/RimWorldLinux_Data/Managed/Assembly-CSharp.dll')">$(GameRoot)/RimWorldLinux_Data/Managed</GameManaged>
+    <GameManaged Condition="'$(GameManaged)' == ''">$(GameRoot)/RimWorld.app/Contents/MacOS</GameManaged>
+  </PropertyGroup>
+
+  <ItemGroup Condition="Exists('$(GameManaged)/Assembly-CSharp.dll')">
+    <Reference Include="Assembly-CSharp"><HintPath>$(GameManaged)/Assembly-CSharp.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(GameManaged)/UnityStubs.dll')">
+    <Reference Include="UnityStubs"><HintPath>$(GameManaged)/UnityStubs.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(GameManaged)/Brutal.Core.Maths.dll')">
+    <Reference Include="Brutal.Core.Maths"><HintPath>$(GameManaged)/Brutal.Core.Maths.dll</HintPath><Private>False</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('$(GameManaged)/Assembly-CSharp.dll')">
+    <PackageReference Include="Krafs.Rimworld.Ref" Version="1.7.4979-alpha" />
+  </ItemGroup>
+</Project>

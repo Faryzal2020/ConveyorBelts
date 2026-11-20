@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <DesignationCategoryDef>
+    <defName>CB_Conveyors</defName>
+    <label>conveyors</label>
+    <order>260</order>
+    <!-- specialDesignatorClasses are added in Task 7 -->
+  </DesignationCategoryDef>
+</Defs>

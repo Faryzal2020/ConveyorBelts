@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef Abstract="True" Name="CB_BeltBase" ParentName="BuildingBase">
+    <thingClass>Building</thingClass>
+    <category>Building</category>
+    <graphicData>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(1,1)</drawSize>
+    </graphicData>
+    <building>
+      <isEdifice>false</isEdifice>
+      <isInert>true</isInert>
+      <canConstructInCorner>true</canConstructInCorner>
+    </building>
+    <altitudeLayer>Conduits</altitudeLayer>
+    <passability>Standable</passability>
+    <rotatable>true</rotatable>
+    <selectable>true</selectable>
+    <useHitPoints>true</useHitPoints>
+    <leaveResourcesWhenKilled>false</leaveResourcesWhenKilled>
+    <designationCategory>CB_Conveyors</designationCategory>
+    <replaceTags>
+      <li>ConveyorBelt</li>
+    </replaceTags>
+    <statBases>
+      <MaxHitPoints>80</MaxHitPoints>
+      <WorkToBuild>35</WorkToBuild>
+      <Flammability>0.5</Flammability>
+      <Beauty>-1</Beauty>
+    </statBases>
+    <costList>
+      <Steel>1</Steel>
+    </costList>
+  </ThingDef>
+
+  <ThingDef ParentName="CB_BeltBase">
+    <defName>CB_Belt_Basic</defName>
+    <label>basic conveyor belt</label>
+    <description>A slow conveyor belt (1.5 tiles/s, stack 10, 5 W per tile). Needs a motor.</description>
+    <graphicData>
+      <texPath>ConveyorBelts/Belt_Basic</texPath>
+    </graphicData>
+    <uiIconPath>ConveyorBelts/Belt_Basic_north</uiIconPath>
+  </ThingDef>
+
+  <ThingDef ParentName="CB_BeltBase">
+    <defName>CB_Belt_Fast</defName>
+    <label>fast conveyor belt</label>
+    <description>A fast conveyor belt (3 tiles/s, stack 25, 10 W per tile). Needs a motor.</description>
+    <graphicData>
+      <texPath>ConveyorBelts/Belt_Fast</texPath>
+    </graphicData>
+    <uiIconPath>ConveyorBelts/Belt_Fast_north</uiIconPath>
+  </ThingDef>
+
+  <ThingDef ParentName="CB_BeltBase">
+    <defName>CB_Belt_Express</defName>
+    <label>express conveyor belt</label>
+    <description>An express conveyor belt (6 tiles/s, stack 75, 20 W per tile). Needs a motor.</description>
+    <graphicData>
+      <texPath>ConveyorBelts/Belt_Express</texPath>
+    </graphicData>
+    <uiIconPath>ConveyorBelts/Belt_Express_north</uiIconPath>
+  </ThingDef>
+</Defs>
