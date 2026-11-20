@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using ConveyorBelts.Sim;
 using LudeonTK;
@@ -499,6 +500,137 @@ namespace ConveyorBelts
         {
             foreach (var p in Find.CurrentMap.mapPawns.FreeColonistsSpawned)
                 Log.Message($"[CB] {p.LabelShort} (id {p.thingIDNumber}) capacity={MassUtility.Capacity(p):0.0}kg used={MassUtility.GearAndInventoryMass(p):0.0}kg steel-fit={MassUtility.CountToPickUpUntilOverEncumbered(p, ThingMaker.MakeThing(ThingDefOf.Steel))}");
+        }
+
+        // ---- Performance test layout (Task 14) ----
+
+        const int PerfLines = 20, PerfLen = 100;
+
+        [DebugAction(Cat, "Perf: build test layout", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PerfBuild()
+        {
+            var map = Find.CurrentMap;
+            var comp = MapComponent_Belts.For(map);
+            var belt = DefDatabase<ThingDef>.GetNamed("CB_Belt_Basic");
+            var motor = DefDatabase<ThingDef>.GetNamed("CB_BeltMotor");
+            int ox = map.Center.x - PerfLen / 2, oz = map.Center.z - PerfLines / 2;
+            // clear the area (plants, rock, buildings, items, filth) so every cell can take a belt; pawns stay
+            for (int x = ox - 1; x <= ox + PerfLen + 2; x++)
+                for (int z = oz; z < oz + PerfLines; z++)
+                {
+                    var c = new IntVec3(x, 0, z);
+                    foreach (var t in c.GetThingList(map).ToList())
+                        if (!(t is Pawn) && !t.Destroyed) t.Destroy();
+                    if (!c.GetTerrain(map).affordances.Contains(TerrainAffordanceDefOf.Light))
+                        map.terrainGrid.SetTerrain(c, TerrainDefOf.Soil);
+                    map.roofGrid.SetRoof(c, null);
+                }
+            int items = 0;
+            perfLineStarts.Clear();
+            perfRefill = true;
+            for (int line = 0; line < PerfLines; line++)
+            {
+                int z = oz + line;
+                for (int i = 0; i < PerfLen; i++) Spawn(belt, new IntVec3(ox + i, 0, z), map);
+                var m = Spawn(motor, new IntVec3(ox - 1, 0, z), map);
+                comp.Sim.AddSink(new Cell(ox + PerfLen, z), new PerfVoidSink(comp));
+                perfLineStarts.Add(new IntVec3(ox, 0, z));
+                // 2 items per tile at the minimum gap: progress 0.75 (front) and 0.25
+                for (int i = 0; i < PerfLen; i++)
+                    foreach (float p in new[] { 0.75f, 0.25f })
+                    {
+                        var steel = ThingMaker.MakeThing(ThingDefOf.Steel);
+                        steel.stackCount = 1;
+                        long h = comp.Store.Add(steel);
+                        if (h < 0 || !comp.Sim.RestoreItem(new Cell(ox + i, z),
+                                new BeltItem { Handle = h, Count = 1, Progress = p, EnteredFrom = Dir.West }))
+                        { Log.Warning("[CB perf] could not place item"); continue; }
+                        items++;
+                    }
+            }
+            comp.ResetPerf();
+            Log.Message($"[CB perf] built {PerfLines} lines x {PerfLen} basic belts = {comp.Sim.BeltCount} tiles, {items} items on belts, origin ({ox},{oz}); motors powered via CompPowerTrader.PowerOn=true; a void sink (destroys arriving items) one cell past each line end; each tick every line's first belt is topped up with 1 steel when it has room, so the load stays at ~4000 moving items");
+        }
+
+        static readonly List<IntVec3> perfLineStarts = new List<IntVec3>();
+        static bool perfRefill;
+
+        /// <summary>Test sink: destroys what the belt delivers (so the perf layout never fills up or spills).</summary>
+        sealed class PerfVoidSink : IBeltSink
+        {
+            readonly MapComponent_Belts comp;
+            public PerfVoidSink(MapComponent_Belts c) { comp = c; }
+            public bool TryAccept(long handle, int count, Dir fromSide) { comp.Store.Take(handle)?.Destroy(); return true; }
+        }
+
+        /// <summary>Called at the start of every MapComponentTick (outside Sim.Tick): tops up each perf line's first belt.</summary>
+        internal static void PerfRefill(MapComponent_Belts comp)
+        {
+            if (!perfRefill) return;
+            foreach (var c in perfLineStarts)
+            {
+                if (!comp.Sim.CanInsert(c.ToCell(), Dir.West)) continue;
+                var steel = ThingMaker.MakeThing(ThingDefOf.Steel);
+                steel.stackCount = 1;
+                if (!comp.TryPutOnBelt(c, Rot4.West, steel)) steel.Destroy();
+            }
+        }
+
+        [DebugAction(Cat, "Perf: stop refill", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PerfStopRefill() { perfRefill = false; Log.Message("[CB perf] refill stopped"); }
+
+        static Thing Spawn(ThingDef def, IntVec3 cell, Map map)
+        {
+            var t = ThingMaker.MakeThing(def);
+            t.SetFactionDirect(Faction.OfPlayer);
+            GenSpawn.Spawn(t, cell, map, Rot4.East);
+            var power = t.TryGetComp<CompPowerTrader>();
+            if (power != null) power.PowerOn = true;
+            return t;
+        }
+
+        [DebugAction(Cat, "Perf: report", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PerfReport()
+        {
+            var comp = MapComponent_Belts.For(Find.CurrentMap);
+            double ms = 1000.0 / Stopwatch.Frequency;
+            int n = comp.PerfTickSamples, f = comp.PerfDrawSamples;
+            double tick = n > 0 ? comp.PerfSimTicks * ms / n : 0, whole = n > 0 ? comp.PerfCompTicks * ms / n : 0;
+            double draw = f > 0 ? comp.PerfDrawTicks * ms / f : 0, frame = f > 0 ? comp.PerfFrameSeconds * 1000.0 / f : 0;
+            Log.Message($"[CB perf] tick avg {tick:0.000} ms, draw avg {draw:0.000} ms over {n} ticks/{f} frames "
+                + $"(Sim.Tick max {comp.PerfSimMax * ms:0.00} ms; whole MapComponentTick {whole:0.000} ms; frame avg {frame:0.00} ms = {(frame > 0 ? 1000.0 / frame : 0):0} fps; belts {comp.Sim.BeltCount}, items {comp.Store.Count})");
+            comp.ResetPerf();
+        }
+
+        [DebugAction(Cat, "Perf: reset counters", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PerfReset() => MapComponent_Belts.For(Find.CurrentMap).ResetPerf();
+
+        [DebugAction(Cat, "Test: destroy all motors", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void DestroyMotors()
+        {
+            var ms = Find.CurrentMap.listerThings.AllThings.OfType<Building_BeltMotor>().ToList();
+            foreach (var m in ms) m.Destroy();
+            Log.Message($"[CB] destroyed {ms.Count} motors");
+        }
+
+        [DebugAction(Cat, "Test: destroy the belt under each motor's facing", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void DestroyBeltAtMotors()
+        {
+            var map = Find.CurrentMap;
+            int n = 0;
+            foreach (var m in map.listerThings.AllThings.OfType<Building_BeltMotor>().ToList())
+            {
+                var b = (m.Position + m.Rotation.FacingCell).GetFirstThing<Building_Belt>(map);
+                if (b != null) { b.Destroy(DestroyMode.Deconstruct); n++; }
+            }
+            Log.Message($"[CB] destroyed {n} belts in front of motors");
+        }
+
+        [DebugAction(Cat, "Test: log motors", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void LogMotors()
+        {
+            foreach (var m in Find.CurrentMap.listerThings.AllThings.OfType<Building_BeltMotor>())
+                Log.Message($"[CB] motor {m.Position} rot={m.Rotation}: {m.GetInspectString().Replace("\n", " | ")}");
         }
     }
 }

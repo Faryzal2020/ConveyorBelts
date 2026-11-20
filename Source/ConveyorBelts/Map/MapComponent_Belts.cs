@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Diagnostics;
 using ConveyorBelts.Sim;
 using RimWorld;
 using UnityEngine;
@@ -109,13 +110,36 @@ namespace ConveyorBelts
             }
         }
 
+        // Timing counters (read and reset by the "Perf: report" debug action). Cost: two timestamp reads per tick/frame.
+        public long PerfSimTicks, PerfCompTicks, PerfDrawTicks, PerfSimMax;
+        public int PerfTickSamples, PerfDrawSamples;
+        public double PerfFrameSeconds;
+
+        public void ResetPerf()
+        {
+            PerfSimTicks = PerfCompTicks = PerfDrawTicks = PerfSimMax = 0;
+            PerfTickSamples = PerfDrawSamples = 0;
+            PerfFrameSeconds = 0;
+        }
+
         public override void MapComponentTick()
         {
+            CB_DebugActions.PerfRefill(this);            // test-only; no-op unless "Perf: build test layout" ran
+            long t0 = Stopwatch.GetTimestamp();
             if (deferredItems != null) RestoreDeferred();
             CB_DebugActions.ApplyHeldTemperature(map);   // test-only; no-op unless a debug action set it
             if (Store.Orphans.Count > 0) PurgeOrphans();
-            if (Sim.BeltCount > 0) Sim.Tick();
+            if (Sim.BeltCount > 0)
+            {
+                long s0 = Stopwatch.GetTimestamp();
+                Sim.Tick();
+                long d = Stopwatch.GetTimestamp() - s0;
+                PerfSimTicks += d;
+                if (d > PerfSimMax) PerfSimMax = d;
+            }
             if (Find.TickManager.TicksGame % RotInterval == 0 && Store.Count > 0) TickRot();
+            PerfCompTicks += Stopwatch.GetTimestamp() - t0;
+            PerfTickSamples++;
         }
 
         readonly List<(Cell Cell, long Handle)> rotScratch = new List<(Cell, long)>();
@@ -165,7 +189,11 @@ namespace ConveyorBelts
 
         public override void MapComponentDraw()
         {
+            long t0 = Stopwatch.GetTimestamp();
             BeltRenderer.Draw(this);
+            PerfDrawTicks += Stopwatch.GetTimestamp() - t0;
+            PerfDrawSamples++;
+            PerfFrameSeconds += Time.unscaledDeltaTime;
         }
 
         public override void ExposeData()

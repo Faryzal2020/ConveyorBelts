@@ -245,6 +245,14 @@ each; a motor adds a 20 W base on top of its per-tile load.
   meshes directly, batched (instanced) per material.
 - Performance target **[Proposal]:** 2,000 belt tiles and 4,000 moving items at 3× speed adding
   ≤ 2 ms per tick and staying smooth in frame rate. Measured in Milestone 8.
+- **Measured (Task 14, 2026-11-20, release build, macOS arm64, windowed 1280x720):** 20 lines x 100
+  basic belts (2,000 tiles), a motor per line, ~4,000 items kept moving (void sink at each line end,
+  1 steel topped up per line per tick). `Sim.Tick()` avg **0.33 ms** at speed 2 (3x) and **0.27 ms** at
+  speed 3 (6x), worst single tick 1.9 ms; whole `MapComponentTick` is within 0.005 ms of that. Draw
+  (`MapComponentDraw`) avg 1.3-1.4 ms per frame with roughly 1,500 items in view (about 0.9 us/item, so
+  about 3.5 ms if all 4,000 were on screen). Frame time 33.3 ms (30 fps) in the windowed run both paused
+  and running, so belts did not move it. Headless tick-only: 0.15 ms avg. **Target met** (2 ms).
+  Not measured: motors'/ports' own Thing ticks (outside `Sim.Tick`).
 
 ### 5.7 Port settings tab (shared by all three ports) [You + Proposal]
 Each port has one inspect tab, **"Port"**, built by us, replacing the vanilla Storage tab. The tab
