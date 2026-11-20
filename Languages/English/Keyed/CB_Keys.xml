@@ -1,3 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LanguageData>
+  <CB_BeltInspect>Tier: {0} · Line: {1} tiles, {2} · Items: {3}</CB_BeltInspect>
+  <CB_Tier0>basic</CB_Tier0>
+  <CB_Tier1>fast</CB_Tier1>
+  <CB_Tier2>express</CB_Tier2>
+  <CB_Running>running</CB_Running>
+  <CB_Stopped>stopped</CB_Stopped>
+  <CB_NoItems>none</CB_NoItems>
 </LanguageData>

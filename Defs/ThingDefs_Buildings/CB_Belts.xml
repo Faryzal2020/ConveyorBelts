@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Defs>
   <ThingDef Abstract="True" Name="CB_BeltBase" ParentName="BuildingBase">
-    <thingClass>Building</thingClass>
+    <thingClass>ConveyorBelts.Building_Belt</thingClass>
     <category>Building</category>
     <graphicData>
       <graphicClass>Graphic_Multi</graphicClass>
@@ -41,6 +41,11 @@
       <texPath>ConveyorBelts/Belt_Basic</texPath>
     </graphicData>
     <uiIconPath>ConveyorBelts/Belt_Basic_north</uiIconPath>
+    <modExtensions>
+      <li Class="ConveyorBelts.BeltTierExtension">
+        <tier>0</tier>
+      </li>
+    </modExtensions>
   </ThingDef>
 
   <ThingDef ParentName="CB_BeltBase">
@@ -51,6 +56,11 @@
       <texPath>ConveyorBelts/Belt_Fast</texPath>
     </graphicData>
     <uiIconPath>ConveyorBelts/Belt_Fast_north</uiIconPath>
+    <modExtensions>
+      <li Class="ConveyorBelts.BeltTierExtension">
+        <tier>1</tier>
+      </li>
+    </modExtensions>
   </ThingDef>
 
   <ThingDef ParentName="CB_BeltBase">
@@ -61,5 +71,10 @@
       <texPath>ConveyorBelts/Belt_Express</texPath>
     </graphicData>
     <uiIconPath>ConveyorBelts/Belt_Express_north</uiIconPath>
+    <modExtensions>
+      <li Class="ConveyorBelts.BeltTierExtension">
+        <tier>2</tier>
+      </li>
+    </modExtensions>
   </ThingDef>
 </Defs>
