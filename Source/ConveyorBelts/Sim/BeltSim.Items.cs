@@ -88,29 +88,27 @@ namespace ConveyorBelts.Sim
 
             // Phase 1: advance items on running lines; collect front items waiting at the end.
             pending.Clear();
+            tickNo++;
             foreach (var kv in Belts)
             {
                 var b = kv.Value;
-                if (b.Items.Count == 0 || !LineRunning(b.LineId)) continue;
-                float speed = Tiers.Get(b.Tier).TilesPerTick;
-                float limit = 1f;
-                for (int i = 0; i < b.Items.Count; i++)
+                if (b.Items.Count == 0 || b.AdvStamp == tickNo || !LineRunning(b.LineId)) continue;
+                // Receivers advance before their feeders so the gap cap sees this tick's rear position.
+                advStack.Clear();
+                b.Visiting = true; advStack.Add(kv.Key);
+                while (advStack.Count > 0)
                 {
-                    var it = b.Items[i];
-                    float p = it.Progress + speed;
-                    if (p > limit) p = limit;
-                    if (p >= 1f - Eps) p = 1f;
-                    if (p < it.Progress) p = it.Progress;
-                    it.Progress = p;
-                    b.Items[i] = it;
-                    limit = p - MinGap;
-                }
-                if (b.Items[0].Progress >= 1f - Eps)
-                {
-                    var dir = b.Dir;
-                    var r = kv.Key.Step(dir);
-                    pending.TryGetValue(r, out int mask);
-                    pending[r] = mask | (1 << (int)dir.Opposite());   // fromSide as seen by the receiver
+                    var c = advStack[advStack.Count - 1];
+                    var cb = Belts[c];
+                    if (Belts.TryGetValue(c.Step(cb.Dir), out var rb) && rb.Items.Count > 0 && !rb.Visiting
+                        && rb.AdvStamp != tickNo && LineRunning(rb.LineId))
+                    {
+                        rb.Visiting = true; advStack.Add(c.Step(cb.Dir));
+                        continue;
+                    }
+                    advStack.RemoveAt(advStack.Count - 1);
+                    cb.Visiting = false; cb.AdvStamp = tickNo;
+                    AdvanceTile(c, cb);
                 }
             }
 
@@ -134,6 +132,40 @@ namespace ConveyorBelts.Sim
                     else sinkLast[r] = d;
                     break;
                 }
+            }
+        }
+
+
+        readonly List<Cell> advStack = new List<Cell>();
+        int tickNo;
+
+        void AdvanceTile(Cell cell, BeltCell b)
+        {
+            float speed = Tiers.Get(b.Tier).TilesPerTick;
+            float limit = 1f;
+            // Don't advance into the space of the item ahead on the receiving belt.
+            if (Belts.TryGetValue(cell.Step(b.Dir), out var rb) && rb.Dir != b.Dir.Opposite() && rb.Items.Count > 0)
+            {
+                float cap = MinGap + rb.Items[rb.Items.Count - 1].Progress;
+                if (cap < limit) limit = cap;
+            }
+            for (int i = 0; i < b.Items.Count; i++)
+            {
+                var it = b.Items[i];
+                float p = it.Progress + speed;
+                if (p > limit) p = limit;
+                if (p >= 1f - Eps && limit >= 1f - Eps) p = 1f;
+                if (p < it.Progress) p = it.Progress;
+                it.Progress = p;
+                b.Items[i] = it;
+                limit = p - MinGap;
+            }
+            if (b.Items[0].Progress >= 1f - Eps)
+            {
+                var dir = b.Dir;
+                var r = cell.Step(dir);
+                pending.TryGetValue(r, out int mask);
+                pending[r] = mask | (1 << (int)dir.Opposite());   // fromSide as seen by the receiver
             }
         }
 

@@ -190,6 +190,35 @@ namespace ConveyorBelts.Tests
             Assert.Equal(2L, s.ItemsAt(new(0,0))[0].Handle);   // front item first
         }
 
+        [Fact] public void StoppedReceiver_NoOverlapAtBoundary()
+        {
+            var (s, _) = New(true);
+            s.AddBelt(new(0,0), Dir.East, 0); s.AddBelt(new(1,0), Dir.North, 0);
+            s.AddMotor(new(0,1), Dir.South); s.SetMotorPowered(new(0,1), true);
+            s.RestoreItem(new(1,0), new BeltItem { Handle = 1, Count = 1, Progress = 0f, EnteredFrom = Dir.West });
+            s.TryInsert(new(0,0), Dir.West, 2, 1);
+            Ticks(s, 200);
+            Near(0.5f, s.ItemsAt(new(0,0)).Single().Progress);
+            Assert.Single(s.ItemsAt(new(1,0)));
+        }
+        [Fact] public void FastIntoBasic_KeepsHalfTileGap()
+        {
+            var (s, _) = New();
+            s.AddBelt(new(0,0), Dir.East, Tiers.Fast); s.AddBelt(new(1,0), Dir.East, Tiers.Basic);
+            s.AddSink(new(2,0), new TestSink());
+            long id = 1;
+            for (int t = 0; t < 600; t++)
+            {
+                s.TryInsert(new(0,0), Dir.West, id++, 1);
+                s.Tick();
+                var up = s.ItemsAt(new(0,0)); var down = s.ItemsAt(new(1,0));
+                if (up.Count > 0 && down.Count > 0)
+                    Assert.True((1f - up[0].Progress) + down[down.Count - 1].Progress >= 0.5f - 1e-4f, $"tick {t}");
+                if (up.Count == 2) Assert.True(up[0].Progress - up[1].Progress >= 0.5f - 1e-4f);
+                if (down.Count == 2) Assert.True(down[0].Progress - down[1].Progress >= 0.5f - 1e-4f);
+            }
+        }
+
         static BeltSim Ring(int items)
         {
             var (s, _) = New();

@@ -14,6 +14,8 @@ namespace ConveyorBelts.Sim
             public int LineId = -1;
             public Dir LastFrom;   // round-robin cursor for merging inputs (valid when HasLast)
             public bool HasLast;
+            public int AdvStamp;     // tick number this tile last advanced
+            public bool Visiting;    // scratch for ordered advance
         }
 
         readonly IBeltHost host;
