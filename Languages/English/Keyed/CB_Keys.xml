@@ -25,4 +25,17 @@
   <CB_SearchNoMatch>No matching items.</CB_SearchNoMatch>
   <CB_SearchMore>{0} more: type more to narrow the list.</CB_SearchMore>
   <CB_PortNotFeeding>Not feeding belts: no power.</CB_PortNotFeeding>
+  <CB_WhenFull>When the cell in front is full:</CB_WhenFull>
+  <CB_OutputHold>Hold (belt backs up)</CB_OutputHold>
+  <CB_OutputHoldDesc>Keep the item and stop taking more until the front cell has room.</CB_OutputHoldDesc>
+  <CB_OutputSpill>Spill (drop nearby)</CB_OutputSpill>
+  <CB_OutputSpillDesc>Put the item on the nearest free cell.</CB_OutputSpillDesc>
+  <CB_ConfigureOutput>Output settings</CB_ConfigureOutput>
+  <CB_ConfigureOutputDesc>Open the Port tab to choose what happens when the cell in front is full.</CB_ConfigureOutputDesc>
+  <CB_CopyMode>Copy mode</CB_CopyMode>
+  <CB_CopyModeDesc>Copy this port's full-cell behaviour.</CB_CopyModeDesc>
+  <CB_PasteMode>Paste mode</CB_PasteMode>
+  <CB_PasteModeDesc>Apply the copied full-cell behaviour to this port.</CB_PasteModeDesc>
+  <CB_OutputNoPower>Not accepting items: no power.</CB_OutputNoPower>
+  <CB_OutputHolding>Holding: {0}</CB_OutputHolding>
 </LanguageData>

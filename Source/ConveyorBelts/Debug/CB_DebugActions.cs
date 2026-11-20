@@ -254,6 +254,60 @@ namespace ConveyorBelts
             Log.Message($"[CB] selected {p}; openTab={pane.OpenTabType?.Name ?? "none"} curTabs=[{string.Join(", ", pane.CurTabs?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
         }
 
+        // ---- Output port ----
+
+        static List<Building_OutputPort> OutputPorts(Map map)
+            => map.listerThings.AllThings.OfType<Building_OutputPort>().OrderBy(p => p.thingIDNumber).ToList();
+
+        static string Describe(Building_OutputPort p)
+            => $"output {p.thingIDNumber} at {p.Position} rot={p.Rotation} mode={p.FullMode} powered={p.Powered} " +
+               $"buffer={(p.Buffer == null ? "none" : p.Buffer.def.defName + " x" + p.Buffer.stackCount)}";
+
+        [DebugAction(Cat, "Set output ports to Spill", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void OutputsSpill() => SetOutputs(OutputFullMode.Spill);
+
+        [DebugAction(Cat, "Set output ports to Hold", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void OutputsHold() => SetOutputs(OutputFullMode.Hold);
+
+        static void SetOutputs(OutputFullMode m)
+        {
+            foreach (var p in OutputPorts(Find.CurrentMap))
+            {
+                new Section_OutputModes(p).SetMode(m);   // the call the radio buttons make
+                Log.Message($"[CB] {Describe(p)}");
+            }
+        }
+
+        [DebugAction(Cat, "Log output ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void LogOutputs()
+        {
+            foreach (var p in OutputPorts(Find.CurrentMap))
+                Log.Message($"[CB] {Describe(p)} tabs=[{string.Join(", ", p.GetInspectTabs()?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
+        }
+
+        [DebugAction(Cat, "Destroy output ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void DestroyOutputs()
+        {
+            foreach (var p in OutputPorts(Find.CurrentMap))
+            {
+                Log.Message($"[CB] destroying {Describe(p)}");
+                p.Destroy(DestroyMode.Vanish);
+            }
+        }
+
+        [DebugAction(Cat, "Select first output port and open Port tab", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void OpenOutputTab()
+        {
+            var p = OutputPorts(Find.CurrentMap).FirstOrDefault();
+            if (p == null) { Log.Warning("[CB] no output port"); return; }
+            Find.Selector.ClearSelection();
+            Find.Selector.Select(p, playSound: false);
+            Building_InputPort.OpenPortTab();
+            var pane = (MainTabWindow_Inspect)MainButtonDefOf.Inspect.TabWindow;
+            Find.CameraDriver.SetRootPosAndSize(p.Position.ToVector3Shifted(), 8f);
+            Log.Message($"[CB] selected {p}; openTab={pane.OpenTabType?.Name ?? "none"} curTabs=[{string.Join(", ", pane.CurTabs?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
+        }
+
         [DebugAction(Cat, "Focus camera on belts", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void FocusCamera()
         {
