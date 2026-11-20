@@ -12,7 +12,8 @@ namespace ConveyorBelts.Sim
             public int Tier;
             public readonly List<BeltItem> Items = new List<BeltItem>(2);
             public int LineId = -1;
-            public Dir LastFrom;   // round-robin cursor for merging inputs
+            public Dir LastFrom;   // round-robin cursor for merging inputs (valid when HasLast)
+            public bool HasLast;
         }
 
         readonly IBeltHost host;
