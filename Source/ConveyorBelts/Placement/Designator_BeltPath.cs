@@ -85,13 +85,7 @@ namespace ConveyorBelts
             return counts;
         }
 
-        static Building_Belt BeltAt(IntVec3 c, Map map)
-        {
-            var list = c.GetThingList(map);
-            for (int i = 0; i < list.Count; i++)
-                if (list[i] is Building_Belt b && b.Spawned && !b.swappingOut) return b;
-            return null;
-        }
+        static Building_Belt BeltAt(IntVec3 c, Map map) => BeltGizmos.BeltAt(c, map);
 
         /// <summary>Walls, motors, ports, doors, rock (or plans for them) block belts (spec §5.2).</summary>
         static bool BlockedByEdifice(IntVec3 c, Map map)
@@ -147,12 +141,12 @@ namespace ConveyorBelts
                     belt.Rotation = rot;
                     MapComponent_Belts.For(map)?.Sim.SetBelt(c.ToCell(), rot.ToDir(), belt.Tier);
                     map.mapDrawer.MapMeshDirty(c, (ulong)MapMeshFlagDefOf.Things | (ulong)MapMeshFlagDefOf.Buildings);
+                    // A pending other-tier upgrade on this cell follows the new direction.
+                    BeltGizmos.RotatePlans(c, map, rot);
                     break;
                 }
                 case TileAction.Replace:
-                    // Always a replace blueprint, also in god mode: a direct spawn would put two belts on one cell.
-                    PlaceBlueprint(c, rot);
-                    break;
+                    // God mode: the new belt spawns on top and Building_Belt.SpawnSetup swaps the old one out.
                 case TileAction.Build:
                     if (DebugSettings.godMode) SpawnDirect(c, rot);
                     else PlaceBlueprint(c, rot);
@@ -167,30 +161,12 @@ namespace ConveyorBelts
         // Same sequence as Designator_Build.DesignateSingleCell (non-god branch), with a per-tile rotation.
         void PlaceBlueprint(IntVec3 c, Rot4 rot)
         {
-            var map = Map;
-            DestroyReplaceableFrames(c, map);
-            GenSpawn.WipeExistingThings(c, rot, beltDef.blueprintDef, map, DestroyMode.Deconstruct);
-            var bp = GenConstruct.PlaceBlueprintForBuild(beltDef, c, map, rot, Faction.OfPlayer, StuffDef);
+            var bp = BeltGizmos.PlaceBeltBlueprint(beltDef, c, rot, Map, StuffDef);
             bp.StyleSourcePrecept = sourcePrecept;
             if (bp.StyleSourcePrecept == null) bp.StyleDef = ThingStyleDefNonPreceptSource;
         }
 
-        void SpawnDirect(IntVec3 c, Rot4 rot)
-        {
-            var map = Map;
-            DestroyReplaceableFrames(c, map);
-            var thing = ThingMaker.MakeThing(beltDef, StuffDef);
-            thing.SetFactionDirect(Faction.OfPlayer);
-            GenSpawn.Spawn(thing, c, map, rot);
-        }
-
-        void DestroyReplaceableFrames(IntVec3 c, Map map)
-        {
-            var list = c.GetThingList(map);
-            for (int i = list.Count - 1; i >= 0; i--)
-                if (list[i] is Frame frame && beltDef.blueprintDef.replaceTags.NotNullAndContainsAnyElement(frame.def.replaceTags))
-                    frame.Destroy(DestroyMode.Cancel);
-        }
+        void SpawnDirect(IntVec3 c, Rot4 rot) => BeltGizmos.SpawnBelt(beltDef, c, rot, Map, StuffDef);
 
         /// <summary>Right-click / Esc with a pending start: clear the start only and consume the event.</summary>
         internal bool TryConsumeCancel(Event ev)

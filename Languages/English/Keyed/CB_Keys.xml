@@ -59,4 +59,10 @@
   <CB_PusherEjectSide>Eject side:</CB_PusherEjectSide>
   <CB_EjectLeftThenRight>Left, then right</CB_EjectLeftThenRight>
   <CB_EjectRightThenLeft>Right, then left</CB_EjectRightThenLeft>
+  <CB_SelectLine>Select line</CB_SelectLine>
+  <CB_SelectLineDesc>Select every belt in this belt's line: the straight run in one direction that one motor drives.</CB_SelectLineDesc>
+  <CB_UpgradeTo>Upgrade to {0}</CB_UpgradeTo>
+  <CB_DowngradeTo>Downgrade to {0}</CB_DowngradeTo>
+  <CB_ChangeTierDesc>Plan a {0} belt over each selected belt, keeping its direction. The old belt keeps moving items until the new one is built; then it is removed with the usual deconstruction refund, and the items on it stay.</CB_ChangeTierDesc>
+  <CB_BeingUpgraded>Planned to be replaced by a {0}. Cancel that plan to deconstruct this belt.</CB_BeingUpgraded>
 </LanguageData>

@@ -405,6 +405,21 @@ belt state); those go in the harness repo, not this mod.
 2. **Replace behaviour for non-edifices** is read from code, not yet tested: confirm in M7 that the
    blueprint can be placed over the old belt, the old belt survives the frame stage, and the spawn hook
    swaps cleanly.
+   **RESOLVED (2026-11-20, Task 12), with one correction.** Reading the code missed a 1.7 work giver:
+   `WorkGiver_DeconstructForBlueprint` (Construction, priority 85) has pawns deconstruct any building that a
+   blueprint on its cell `CanReplace`s, *before* delivering materials. First in-game run: a pawn deconstructed the
+   old basic belt under the Fast blueprint (job `DeconstructForBlueprint`), its items dropped, the line was cut.
+   Fix, no Harmony: `Building_Belt.DeconstructibleBy` refuses while a blueprint/frame of another belt tier is on
+   its cell ("Planned to be replaced by a ... Cancel that plan to deconstruct this belt."). With that, verified
+   headless: the blueprint is accepted over the old belt, the frame (`Frame_CB_Belt_Fast`, 1 steel delivered)
+   coexists with the old belt, items keep passing through that cell, `GenConstruct.BlocksConstruction` is false
+   for the old belt, and on completion `Building_Belt.SpawnSetup` swaps (items kept, direction kept, old belt
+   destroyed with `DestroyMode.Deconstruct` = vanilla refund, 50% chance of the 1 steel). Cancelling the frame
+   leaves the old belt running. Save/load with half-built frames (work 7.3/35) restores items and frames; the
+   frames finish and swap after load.
+   Second finding: belt defs have `canGenerateDefaultDesignator=false`, and vanilla `Ideo.MembersCanBuild`
+   rejects such defs for non-classic ideoligions, so colonists never built belts at all. `BeltDefFixups`
+   (ConveyorBeltsMod.cs) sets the flag back to true at startup, after the architect tab resolved its designators.
 3. **Hiding the vanilla Storage tab** on a `Building_Storage` subclass: if it can't be removed via the
    def's inspector tabs alone, it needs a small Harmony patch. Check in M5.
    **RESOLVED (2026-11-20, Task 9): no Harmony needed.** In 1.7 `Building_Storage` adds no tab itself:

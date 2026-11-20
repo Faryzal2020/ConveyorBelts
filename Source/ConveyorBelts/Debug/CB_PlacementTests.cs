@@ -101,6 +101,22 @@ namespace ConveyorBelts
         [DebugAction(Cat, "Test: fast over path B (Z-first)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void FastOverB() => RunPath<Designator_BeltPath_Fast>("fast over B", At(8, 0), At(13, 5), zFirst: true);
 
+        [DebugAction(Cat, "Test: basic path reversed over O+(9..16,4)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void ReversedRow4() => RunPath<Designator_BeltPath_Basic>("basic reversed row 4", At(16, 4), At(9, 4));
+
+        [DebugAction(Cat, "Test: spawn basic line O+(9..16,4) east with motor at O+(8,4)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void SpawnRow4()
+        {
+            var map = Find.CurrentMap;
+            var basic = DefDatabase<ThingDef>.GetNamed("CB_Belt_Basic");
+            for (int dx = 9; dx <= 16; dx++) BeltGizmos.SpawnBelt(basic, At(dx, 4), Rot4.East, map, null);
+            var motor = ThingMaker.MakeThing(DefDatabase<ThingDef>.GetNamed("CB_BeltMotor"));
+            motor.SetFactionDirect(Faction.OfPlayer);
+            GenSpawn.Spawn(motor, At(8, 4), map, Rot4.East);
+            Find.CameraDriver.SetRootPosAndSize(At(12, 4).ToVector3Shifted(), 12f);
+            Log.Message("[CB] spawned basic row O+(9..16,4) east, motor O+(8,4)");
+        }
+
         [DebugAction(Cat, "Test: express path over wall at O+(19,2)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void ExpressOverWall()
         {
