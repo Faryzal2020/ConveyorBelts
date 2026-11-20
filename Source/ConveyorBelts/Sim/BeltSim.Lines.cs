@@ -11,6 +11,7 @@ namespace ConveyorBelts.Sim
         {
             if (!linesDirty) return;
             linesDirty = false;
+            driversDirty = true;
             lines.Clear();
             foreach (var b in Belts.Values) b.LineId = -1;
 

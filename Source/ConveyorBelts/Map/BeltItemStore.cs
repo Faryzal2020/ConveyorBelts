@@ -83,7 +83,7 @@ namespace ConveyorBelts
             Thing piece;
             removing = true;
             try { piece = t.SplitOff(count); } finally { removing = false; }
-            if (piece == t) { things.TryAdd(t, canMergeWithExistingStacks: false); return handle; }
+            if (piece == t) { things.TryAdd(t, canMergeWithExistingStacks: false); index[t.thingIDNumber] = t; return handle; }
             return Add(piece);
         }
 

@@ -11,6 +11,8 @@
   <CB_RotateMotorDesc>Turn the motor to face the next adjacent belt.</CB_RotateMotorDesc>
   <CB_MotorDriving>Driving {0} tiles, {1} W</CB_MotorDriving>
   <CB_MotorStandby>Line already driven</CB_MotorStandby>
+  <CB_RotateMotorNoBelts>No belt beside the motor to turn to.</CB_RotateMotorNoBelts>
+  <CB_RemoveBeltFirst>Remove the belt first.</CB_RemoveBeltFirst>
   <CB_MotorIdle>No belt in front</CB_MotorIdle>
   <CB_TabPort>Port</CB_TabPort>
   <CB_ConfigureItems>Configure items</CB_ConfigureItems>
@@ -63,8 +65,8 @@
   <CB_SelectLineDesc>Select every belt in this belt's line: the straight run in one direction that one motor drives.</CB_SelectLineDesc>
   <CB_UpgradeTo>Upgrade to {0}</CB_UpgradeTo>
   <CB_DowngradeTo>Downgrade to {0}</CB_DowngradeTo>
-  <CB_ChangeTierDesc>Plan a {0} belt over each selected belt, keeping its direction. The old belt keeps moving items until the new one is built; then it is removed with the usual deconstruction refund, and the items on it stay.</CB_ChangeTierDesc>
-  <CB_BeingUpgraded>Planned to be replaced by a {0}. Cancel that plan to deconstruct this belt.</CB_BeingUpgraded>
+  <CB_ChangeTierDesc>Plan {0} belts over the selected belts, keeping their directions. Each old belt keeps moving items until its replacement is built; then it is removed with the usual deconstruction refund, and the items on it stay.</CB_ChangeTierDesc>
+  <CB_BeingUpgraded>Replacement planned: {0}. Cancel that plan to deconstruct this belt.</CB_BeingUpgraded>
   <CB_HaulFromBelt>Haul {0} to stockpile</CB_HaulFromBelt>
   <CB_PickUpFromBelt>Pick up {0}</CB_PickUpFromBelt>
   <CB_CannotHaul>Cannot haul {0}: incapable of hauling</CB_CannotHaul>

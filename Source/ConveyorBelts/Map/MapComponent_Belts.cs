@@ -28,32 +28,46 @@ namespace ConveyorBelts
             Store = new BeltItemStore(map);
         }
 
+        // Test-only state of the debug actions (never saved; per map, so it cannot leak into another save or map).
+        internal readonly List<IntVec3> PerfLineStarts = new List<IntVec3>();
+        internal bool PerfRefillOn;
+        internal float? HeldTemp;
+
         readonly List<Building_BeltMotor> motors = new List<Building_BeltMotor>();
 
         /// <summary>Registers the motor with the sim. The sim's "first-registered" rule must not depend on save/spawn
         /// order, so all motors are (re)registered in thingIDNumber order.</summary>
         public void RegisterMotor(Building_BeltMotor m)
         {
-            if (!motors.Contains(m)) motors.Add(m);
-            ReregisterMotors(null);
+            if (motors.Contains(m)) return;
+            // Usual case (a newly built motor has the highest id): append. Otherwise (load/spawn order) one sorted pass.
+            if (motors.Count == 0 || motors[motors.Count - 1].thingIDNumber < m.thingIDNumber)
+            {
+                motors.Add(m);
+                AddToSim(m);
+                return;
+            }
+            motors.Add(m);
+            ReregisterMotors();
         }
 
         public void UnregisterMotor(Building_BeltMotor m)
         {
-            motors.Remove(m);
+            motors.Remove(m);   // removing one motor keeps the others' relative order: no re-registration needed
             Sim.RemoveMotor(m.Position.ToCell());
-            ReregisterMotors(null);
         }
 
-        void ReregisterMotors(object _)
+        void ReregisterMotors()
         {
-            foreach (var m in motors) Sim.RemoveMotor(m.Position.ToCell());
+            Sim.ClearMotors();
             motors.Sort((a, b) => a.thingIDNumber.CompareTo(b.thingIDNumber));
-            foreach (var m in motors)
-            {
-                Sim.AddMotor(m.Position.ToCell(), m.Facing);
-                Sim.SetMotorPowered(m.Position.ToCell(), m.SimPowered);
-            }
+            foreach (var m in motors) AddToSim(m);
+        }
+
+        void AddToSim(Building_BeltMotor m)
+        {
+            Sim.AddMotor(m.Position.ToCell(), m.Facing);
+            Sim.SetMotorPowered(m.Position.ToCell(), m.SimPowered);
         }
 
         public static MapComponent_Belts For(Map map) => map?.GetComponent<MapComponent_Belts>();
@@ -110,15 +124,19 @@ namespace ConveyorBelts
             }
         }
 
-        // Timing counters (read and reset by the "Perf: report" debug action). Cost: two timestamp reads per tick/frame.
-        public long PerfSimTicks, PerfCompTicks, PerfDrawTicks, PerfSimMax;
+        // Timing counters (read and reset by the "Perf: report" debug action). Cost: four timestamp reads per tick
+        // (whole MapComponentTick + Sim.Tick), two per frame (BeltRenderer.Draw).
+        // PerfMotorTicks: time spent in Building_BeltMotor.Tick (two more reads per motor per tick).
+        public long PerfSimTicks, PerfCompTicks, PerfDrawTicks, PerfSimMax, PerfMotorTicks;
         public int PerfTickSamples, PerfDrawSamples;
+        public long PerfDrawnItems;   // items drawn, summed over PerfDrawSamples frames
         public double PerfFrameSeconds;
 
         public void ResetPerf()
         {
-            PerfSimTicks = PerfCompTicks = PerfDrawTicks = PerfSimMax = 0;
+            PerfSimTicks = PerfCompTicks = PerfDrawTicks = PerfSimMax = PerfMotorTicks = 0;
             PerfTickSamples = PerfDrawSamples = 0;
+            PerfDrawnItems = 0;
             PerfFrameSeconds = 0;
         }
 
@@ -190,7 +208,7 @@ namespace ConveyorBelts
         public override void MapComponentDraw()
         {
             long t0 = Stopwatch.GetTimestamp();
-            BeltRenderer.Draw(this);
+            PerfDrawnItems += BeltRenderer.Draw(this);
             PerfDrawTicks += Stopwatch.GetTimestamp() - t0;
             PerfDrawSamples++;
             PerfFrameSeconds += Time.unscaledDeltaTime;
@@ -224,9 +242,13 @@ namespace ConveyorBelts
                 if (RestoreOne(s)) restored++;
                 else (deferredItems ??= new List<SavedBeltItem>()).Add(s);
             }
-            Log.Message($"[CB] FinalizeInit: restored {restored}/{savedItems.Count} belt items, deferred {deferredItems?.Count ?? 0}");
+            if (Prefs.DevMode) Log.Message($"[CB] FinalizeInit: restored {restored}/{savedItems.Count} belt items, deferred {deferredItems?.Count ?? 0}");
             savedItems = null;
-            if (CB_DebugActions.DumpOnLoad) CB_DebugActions.Dump(map);
+            if (CB_DebugActions.DumpOnLoad)
+            {
+                CB_DebugActions.DumpOnLoad = false;   // one-shot: only the load right after the toggle dumps
+                CB_DebugActions.Dump(map);
+            }
         }
 
         bool RestoreOne(SavedBeltItem s)
@@ -252,7 +274,7 @@ namespace ConveyorBelts
                 if (RestoreOne(s)) restored++;
                 else { DropHandle(s.cell, s.handle); dropped++; }
             }
-            Log.Message($"[CB] first tick: restored {restored} deferred belt items, dropped {dropped}");
+            if (Prefs.DevMode) Log.Message($"[CB] first tick: restored {restored} deferred belt items, dropped {dropped}");
         }
     }
 }

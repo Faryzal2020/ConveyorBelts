@@ -153,7 +153,14 @@ namespace ConveyorBelts.Tests
             Assert.Equal(1f, s.ItemsAt(new(0,0)).Single().Progress);
             sink.Accept = true; s.Tick();
             Assert.Single(sink.Seen);
-            s.RemoveSink(new(1,0));
+            Assert.Empty(s.ItemsAt(new(0,0)));
+        }
+        [Fact] public void TryInsert_RejectsNonPositiveCount()
+        {
+            var (s, _) = New(); s.AddBelt(new(0,0), Dir.East, 0);
+            Assert.False(s.TryInsert(new(0,0), Dir.West, 1, 0));
+            Assert.False(s.TryInsert(new(0,0), Dir.West, 2, -3));
+            Assert.Empty(s.ItemsAt(new(0,0)));
         }
         [Fact] public void RemoveBelt_ReturnsItems()
         {

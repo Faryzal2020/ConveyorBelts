@@ -62,7 +62,7 @@ namespace ConveyorBelts
                 yield return new Command_Action
                 {
                     defaultLabel = (tier > own ? "CB_UpgradeTo" : "CB_DowngradeTo").Translate(tierLabel),
-                    defaultDesc = "CB_ChangeTierDesc".Translate(tierLabel),
+                    defaultDesc = "CB_ChangeTierDesc".Translate(tierLabel),   // the key avoids an article (vanilla English always writes "a")
                     icon = changeTierIcon,
                     defaultIconColor = TierColor(tier),
                     action = () => ChangeTier(belt, def),

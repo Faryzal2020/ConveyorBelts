@@ -13,8 +13,11 @@ namespace ConveyorBelts
     /// </summary>
     public class Building_OutputPort : Building, IBeltSink, IPortTabOwner
     {
+        const int BlockedInterval = 15;   // ticks between placement retries while the front cell is full
+
         OutputFullMode fullMode = OutputFullMode.Hold;
         Thing buffer;
+        bool blocked;   // the last placement attempt failed: retry only every BlockedInterval ticks
         CompPowerTrader power;
         List<PortTabSection> sections;
 
@@ -64,7 +67,10 @@ namespace ConveyorBelts
         protected override void Tick()
         {
             base.Tick();
-            if (buffer != null) TryPlaceBuffer();
+            if (buffer == null) return;
+            if (blocked && !this.IsHashIntervalTick(BlockedInterval)) return;
+            TryPlaceBuffer();
+            blocked = buffer != null;
         }
 
         /// <summary>Places the buffer on the front cell (merging stacks); in Spill mode the rest goes to nearby cells.</summary>
@@ -73,13 +79,30 @@ namespace ConveyorBelts
             if (buffer == null || !Spawned) return;
             if (buffer.Destroyed) { buffer = null; return; }
             var front = FrontCell;
-            if (front.InBounds(Map) && front.Walkable(Map)) GenPlace.TryPlaceThing(buffer, front, Map, ThingPlaceMode.Direct);
+            if (front.InBounds(Map) && front.Walkable(Map) && CellHasRoomFor(front, buffer))
+                GenPlace.TryPlaceThing(buffer, front, Map, ThingPlaceMode.Direct);
             if (Placed()) return;
             if (fullMode == OutputFullMode.Spill)
             {
                 GenPlace.TryPlaceThing(buffer, front, Map, ThingPlaceMode.Near);
                 Placed();
             }
+        }
+
+        /// <summary>
+        /// Whether c can take (part of) t without exceeding its item limit. Vanilla Direct placement spawns a
+        /// non-stackable item on a full cell anyway (a pile), which would defeat Hold.
+        /// </summary>
+        bool CellHasRoomFor(IntVec3 c, Thing t)
+        {
+            int items = 0;
+            foreach (var x in c.GetThingList(Map))
+            {
+                if (x.def.category != ThingCategory.Item) continue;
+                items++;
+                if (t.def.stackLimit > 1 && x.CanStackWith(t) && x.stackCount < x.def.stackLimit) return true;
+            }
+            return items < c.GetMaxItemsAllowedInCell(Map);
         }
 
         bool Placed()

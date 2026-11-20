@@ -29,7 +29,7 @@ namespace ConveyorBelts.Sim
         public bool TryInsert(Cell belt, Dir fromSide, long handle, int count)
         {
             if (!Belts.TryGetValue(belt, out var b)) return false;
-            if (b.Dir == fromSide || count > Tiers.Get(b.Tier).MaxStack || !HasEntrySpace(b)) return false;
+            if (count <= 0 || b.Dir == fromSide || count > Tiers.Get(b.Tier).MaxStack || !HasEntrySpace(b)) return false;
             b.Items.Add(new BeltItem { Handle = handle, Count = count, Progress = 0f, EnteredFrom = fromSide });
             return true;
         }

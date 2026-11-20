@@ -7,9 +7,11 @@ namespace ConveyorBelts
     /// <summary>Draws unspawned belt items at their interpolated positions (called from MapComponentDraw).</summary>
     public static class BeltRenderer
     {
-        public static void Draw(MapComponent_Belts comp)
+        /// <summary>Returns the number of items drawn (in view and not fogged).</summary>
+        public static int Draw(MapComponent_Belts comp)
         {
-            if (comp.Store.Count == 0 || comp.map != Find.CurrentMap) return;
+            if (comp.Store.Count == 0 || comp.map != Find.CurrentMap) return 0;
+            int drawn = 0;
             var view = Find.CameraDriver.CurrentViewRect.ExpandedBy(1);
             var fog = comp.map.fogGrid;
             float y = AltitudeLayer.Item.AltitudeFor();
@@ -23,7 +25,9 @@ namespace ConveyorBelts
                 var (dx, dz) = BeltSim.LocalPos(item.EnteredFrom, dir, item.Progress);
                 var pos = c.ToVector3Shifted();
                 t.DrawNowAt(new Vector3(pos.x + dx, y, pos.z + dz));
+                drawn++;
             }
+            return drawn;
         }
     }
 }

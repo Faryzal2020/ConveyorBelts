@@ -14,6 +14,9 @@
     <useHitPoints>true</useHitPoints>
     <leaveResourcesWhenKilled>true</leaveResourcesWhenKilled>
     <designationCategory>CB_Conveyors</designationCategory>
+    <placeWorkers>
+      <li>ConveyorBelts.PlaceWorker_NotOnBelt</li>
+    </placeWorkers>
     <statBases>
       <MaxHitPoints>100</MaxHitPoints>
       <WorkToBuild>400</WorkToBuild>

@@ -49,7 +49,7 @@ namespace ConveyorBelts
             Log.Message($"[CB] seed {def.defName} x5 on {first.Position}: {(ok ? "ok" : "refused")}");
         }
 
-        /// <summary>When set (debug action), MapComponent_Belts dumps its state right after restoring items on load.</summary>
+        /// <summary>When set (debug action), the next load dumps the belt state right after restoring items (then it clears).</summary>
         internal static bool DumpOnLoad;
 
         [DebugAction(Cat, "Toggle dump on load", allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -141,9 +141,7 @@ namespace ConveyorBelts
             Log.Message($"[CB] enclosed {rect}; room cells={room?.CellCount} outdoorTemp={room?.UsesOutdoorTemperature}");
         }
 
-        static float? heldTemp;
-
-        static void Hold(float? t) { heldTemp = t; Log.Message($"[CB] held room temperature = {(t.HasValue ? t.Value + "C" : "released")}"); }
+        static void Hold(float? t) { MapComponent_Belts.For(Find.CurrentMap).HeldTemp = t; Log.Message($"[CB] held room temperature = {(t.HasValue ? t.Value + "C" : "released")}"); }
 
         [DebugAction(Cat, "Test: hold belt room at -10C", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void HoldCold() => Hold(-10f);
@@ -157,10 +155,11 @@ namespace ConveyorBelts
         /// <summary>Test-only: pins the temperature of the first belt's (indoor) room. No-op unless a hold action ran.</summary>
         internal static void ApplyHeldTemperature(Map map)
         {
-            if (!heldTemp.HasValue) return;
+            var held = MapComponent_Belts.For(map)?.HeldTemp;
+            if (!held.HasValue) return;
             var first = Belts(map).FirstOrDefault();
             var room = first?.Position.GetRoom(map);
-            if (room != null && !room.UsesOutdoorTemperature) room.Temperature = heldTemp.Value;
+            if (room != null && !room.UsesOutdoorTemperature) room.Temperature = held.Value;
         }
 
         [DebugAction(Cat, "Deconstruct all belts", allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -502,21 +501,30 @@ namespace ConveyorBelts
                 Log.Message($"[CB] {p.LabelShort} (id {p.thingIDNumber}) capacity={MassUtility.Capacity(p):0.0}kg used={MassUtility.GearAndInventoryMass(p):0.0}kg steel-fit={MassUtility.CountToPickUpUntilOverEncumbered(p, ThingMaker.MakeThing(ThingDefOf.Steel))}");
         }
 
-        // ---- Performance test layout (Task 14) ----
-
-        const int PerfLines = 20, PerfLen = 100;
+        // ---- Performance test layouts (Task 14, final review I2) ----
 
         [DebugAction(Cat, "Perf: build test layout", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void PerfBuild()
+        static void PerfBuild() => PerfBuildLayout(cols: 1, rows: 20, len: 100);
+
+        /// <summary>286 lines x 7 tiles (13 columns x 22 rows of line segments): the many-short-lines worst case.</summary>
+        [DebugAction(Cat, "Perf: build short-line layout", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PerfBuildShort() => PerfBuildLayout(cols: 13, rows: 22, len: 7);
+
+        /// <summary>
+        /// cols x rows straight east-facing basic lines of len tiles, each with a powered motor behind its head and a
+        /// void sink one cell past its end; segments in a row are len + 2 cells apart (motor, belts, sink cell).
+        /// </summary>
+        static void PerfBuildLayout(int cols, int rows, int len)
         {
             var map = Find.CurrentMap;
             var comp = MapComponent_Belts.For(map);
             var belt = DefDatabase<ThingDef>.GetNamed("CB_Belt_Basic");
             var motor = DefDatabase<ThingDef>.GetNamed("CB_BeltMotor");
-            int ox = map.Center.x - PerfLen / 2, oz = map.Center.z - PerfLines / 2;
+            int pitch = len + 2, width = cols * pitch;
+            int ox = map.Center.x - width / 2 + 1, oz = map.Center.z - rows / 2;   // ox = first segment's first belt
             // clear the area (plants, rock, buildings, items, filth) so every cell can take a belt; pawns stay
-            for (int x = ox - 1; x <= ox + PerfLen + 2; x++)
-                for (int z = oz; z < oz + PerfLines; z++)
+            for (int x = ox - 1; x < ox - 1 + width; x++)
+                for (int z = oz; z < oz + rows; z++)
                 {
                     var c = new IntVec3(x, 0, z);
                     foreach (var t in c.GetThingList(map).ToList())
@@ -526,34 +534,32 @@ namespace ConveyorBelts
                     map.roofGrid.SetRoof(c, null);
                 }
             int items = 0;
-            perfLineStarts.Clear();
-            perfRefill = true;
-            for (int line = 0; line < PerfLines; line++)
-            {
-                int z = oz + line;
-                for (int i = 0; i < PerfLen; i++) Spawn(belt, new IntVec3(ox + i, 0, z), map);
-                var m = Spawn(motor, new IntVec3(ox - 1, 0, z), map);
-                comp.Sim.AddSink(new Cell(ox + PerfLen, z), new PerfVoidSink(comp));
-                perfLineStarts.Add(new IntVec3(ox, 0, z));
-                // 2 items per tile at the minimum gap: progress 0.75 (front) and 0.25
-                for (int i = 0; i < PerfLen; i++)
-                    foreach (float p in new[] { 0.75f, 0.25f })
-                    {
-                        var steel = ThingMaker.MakeThing(ThingDefOf.Steel);
-                        steel.stackCount = 1;
-                        long h = comp.Store.Add(steel);
-                        if (h < 0 || !comp.Sim.RestoreItem(new Cell(ox + i, z),
-                                new BeltItem { Handle = h, Count = 1, Progress = p, EnteredFrom = Dir.West }))
-                        { Log.Warning("[CB perf] could not place item"); continue; }
-                        items++;
-                    }
-            }
+            comp.PerfLineStarts.Clear();
+            comp.PerfRefillOn = true;
+            for (int col = 0; col < cols; col++)
+                for (int row = 0; row < rows; row++)
+                {
+                    int x0 = ox + col * pitch, z = oz + row;
+                    for (int i = 0; i < len; i++) Spawn(belt, new IntVec3(x0 + i, 0, z), map);
+                    Spawn(motor, new IntVec3(x0 - 1, 0, z), map);
+                    comp.Sim.AddSink(new Cell(x0 + len, z), new PerfVoidSink(comp));
+                    comp.PerfLineStarts.Add(new IntVec3(x0, 0, z));
+                    // 2 items per tile at the minimum gap: progress 0.75 (front) and 0.25
+                    for (int i = 0; i < len; i++)
+                        foreach (float p in new[] { 0.75f, 0.25f })
+                        {
+                            var steel = ThingMaker.MakeThing(ThingDefOf.Steel);
+                            steel.stackCount = 1;
+                            long h = comp.Store.Add(steel);
+                            if (h < 0 || !comp.Sim.RestoreItem(new Cell(x0 + i, z),
+                                    new BeltItem { Handle = h, Count = 1, Progress = p, EnteredFrom = Dir.West }))
+                            { Log.Warning("[CB perf] could not place item"); continue; }
+                            items++;
+                        }
+                }
             comp.ResetPerf();
-            Log.Message($"[CB perf] built {PerfLines} lines x {PerfLen} basic belts = {comp.Sim.BeltCount} tiles, {items} items on belts, origin ({ox},{oz}); motors powered via CompPowerTrader.PowerOn=true; a void sink (destroys arriving items) one cell past each line end; each tick every line's first belt is topped up with 1 steel when it has room, so the load stays at ~4000 moving items");
+            Log.Message($"[CB perf] built {cols * rows} lines x {len} basic belts = {comp.Sim.BeltCount} tiles, {items} items on belts, area ({ox - 1},{oz})..({ox - 2 + width},{oz + rows - 1}); motors powered via CompPowerTrader.PowerOn=true; a void sink (destroys arriving items) one cell past each line end; each tick every line's first belt is topped up with 1 steel when it has room, so the load stays at ~2 items per tile");
         }
-
-        static readonly List<IntVec3> perfLineStarts = new List<IntVec3>();
-        static bool perfRefill;
 
         /// <summary>Test sink: destroys what the belt delivers (so the perf layout never fills up or spills).</summary>
         sealed class PerfVoidSink : IBeltSink
@@ -566,8 +572,8 @@ namespace ConveyorBelts
         /// <summary>Called at the start of every MapComponentTick (outside Sim.Tick): tops up each perf line's first belt.</summary>
         internal static void PerfRefill(MapComponent_Belts comp)
         {
-            if (!perfRefill) return;
-            foreach (var c in perfLineStarts)
+            if (!comp.PerfRefillOn) return;
+            foreach (var c in comp.PerfLineStarts)
             {
                 if (!comp.Sim.CanInsert(c.ToCell(), Dir.West)) continue;
                 var steel = ThingMaker.MakeThing(ThingDefOf.Steel);
@@ -577,7 +583,7 @@ namespace ConveyorBelts
         }
 
         [DebugAction(Cat, "Perf: stop refill", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void PerfStopRefill() { perfRefill = false; Log.Message("[CB perf] refill stopped"); }
+        static void PerfStopRefill() { MapComponent_Belts.For(Find.CurrentMap).PerfRefillOn = false; Log.Message("[CB perf] refill stopped"); }
 
         static Thing Spawn(ThingDef def, IntVec3 cell, Map map)
         {
@@ -596,10 +602,27 @@ namespace ConveyorBelts
             double ms = 1000.0 / Stopwatch.Frequency;
             int n = comp.PerfTickSamples, f = comp.PerfDrawSamples;
             double tick = n > 0 ? comp.PerfSimTicks * ms / n : 0, whole = n > 0 ? comp.PerfCompTicks * ms / n : 0;
+            double motorsMs = n > 0 ? comp.PerfMotorTicks * ms / n : 0;
+            double inView = f > 0 ? (double)comp.PerfDrawnItems / f : 0;
             double draw = f > 0 ? comp.PerfDrawTicks * ms / f : 0, frame = f > 0 ? comp.PerfFrameSeconds * 1000.0 / f : 0;
-            Log.Message($"[CB perf] tick avg {tick:0.000} ms, draw avg {draw:0.000} ms over {n} ticks/{f} frames "
-                + $"(Sim.Tick max {comp.PerfSimMax * ms:0.00} ms; whole MapComponentTick {whole:0.000} ms; frame avg {frame:0.00} ms = {(frame > 0 ? 1000.0 / frame : 0):0} fps; belts {comp.Sim.BeltCount}, items {comp.Store.Count})");
+            Log.Message($"[CB perf] tick avg {tick:0.000} ms, draw avg {draw:0.000} ms ({inView:0} items in view) over {n} ticks/{f} frames "
+                + $"(Sim.Tick max {comp.PerfSimMax * ms:0.00} ms; whole MapComponentTick {whole:0.000} ms; motor Thing ticks {motorsMs:0.000} ms/tick; frame avg {frame:0.00} ms = {(frame > 0 ? 1000.0 / frame : 0):0} fps; belts {comp.Sim.BeltCount}, items {comp.Store.Count})");
             comp.ResetPerf();
+        }
+
+        /// <summary>Centres the camera on all belts and zooms out until they all fit (for draw measurements).</summary>
+        [DebugAction(Cat, "Perf: zoom camera to whole layout", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PerfZoomOut()
+        {
+            var belts = Belts(Find.CurrentMap);
+            if (belts.Count == 0) return;
+            int x0 = belts.Min(b => b.Position.x), x1 = belts.Max(b => b.Position.x);
+            int z0 = belts.Min(b => b.Position.z), z1 = belts.Max(b => b.Position.z);
+            var centre = new UnityEngine.Vector3((x0 + x1 + 1) / 2f, 0f, (z0 + z1 + 1) / 2f);
+            float aspect = (float)UI.screenWidth / UI.screenHeight;
+            float size = UnityEngine.Mathf.Max((z1 - z0 + 3) / 2f, (x1 - x0 + 3) / 2f / aspect);
+            Find.CameraDriver.SetRootPosAndSize(centre, size);
+            Log.Message($"[CB perf] camera centre ({centre.x:0.0},{centre.z:0.0}) size {size:0.0} -> view {Find.CameraDriver.CurrentViewRect}");
         }
 
         [DebugAction(Cat, "Perf: reset counters", allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -626,11 +649,30 @@ namespace ConveyorBelts
             Log.Message($"[CB] destroyed {n} belts in front of motors");
         }
 
+        /// <summary>For each line head, puts the floor items on the cell behind it onto the belt (as an input would).</summary>
+        [DebugAction(Cat, "Test: put items behind line heads onto belts", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PutItemsBehindHeads()
+        {
+            var map = Find.CurrentMap;
+            var comp = MapComponent_Belts.For(map);
+            foreach (var b in Belts(map))
+            {
+                var rear = b.Position - b.Rotation.FacingCell;
+                if (rear.GetFirstThing<Building_Belt>(map) != null) continue;
+                foreach (var t in rear.GetThingList(map).Where(t => t.def.category == ThingCategory.Item).ToList())
+                    Log.Message($"[CB] put {t} from {rear} onto {b.Position}: {(comp.TryPutOnBelt(b.Position, b.Rotation.Opposite, t) ? "ok" : "refused")}");
+            }
+        }
+
         [DebugAction(Cat, "Test: log motors", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void LogMotors()
         {
             foreach (var m in Find.CurrentMap.listerThings.AllThings.OfType<Building_BeltMotor>())
-                Log.Message($"[CB] motor {m.Position} rot={m.Rotation}: {m.GetInspectString().Replace("\n", " | ")}");
+            {
+                var rotate = m.GetGizmos().OfType<Command_Action>().FirstOrDefault(g => g.defaultLabel == "CB_RotateMotor".Translate());
+                string gz = rotate == null ? "no rotate gizmo" : rotate.Disabled ? $"rotate disabled: {rotate.disabledReason}" : "rotate enabled";
+                Log.Message($"[CB] motor {m.Position} rot={m.Rotation}: {m.GetInspectString().Replace("\n", " | ")} | {gz}");
+            }
         }
     }
 }

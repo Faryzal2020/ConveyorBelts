@@ -45,14 +45,19 @@ namespace ConveyorBelts
 
         protected override void Tick()
         {
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
             base.Tick();
-            if (power == null) return;
-            if (power.PowerOn != SimPowered)
+            var comp = MapComponent_Belts.For(Map);
+            if (power != null)
             {
-                SimPowered = power.PowerOn;
-                MapComponent_Belts.For(Map).Sim.SetMotorPowered(Position.ToCell(), SimPowered);
+                if (power.PowerOn != SimPowered)
+                {
+                    SimPowered = power.PowerOn;
+                    comp.Sim.SetMotorPowered(Position.ToCell(), SimPowered);
+                }
+                if (this.IsHashIntervalTick(30)) Refresh(false);
             }
-            if (this.IsHashIntervalTick(30)) Refresh(false);
+            comp.PerfMotorTicks += System.Diagnostics.Stopwatch.GetTimestamp() - t0;
         }
 
         void Refresh(bool pushPower)
@@ -88,13 +93,17 @@ namespace ConveyorBelts
         {
             foreach (var g in base.GetGizmos()) yield return g;
             rotateIcon ??= ContentFinder<Texture2D>.Get("ConveyorBelts/UI/RotateMotor");
-            yield return new Command_Action
+            var rotate = new Command_Action
             {
                 defaultLabel = "CB_RotateMotor".Translate(),
                 defaultDesc = "CB_RotateMotorDesc".Translate(),
                 icon = rotateIcon,
                 action = RotateToNextBelt,
             };
+            var comp = MapComponent_Belts.For(Map);
+            if (comp == null || !comp.Sim.AdjacentBeltDirs(Position.ToCell()).Any())
+                rotate.Disable("CB_RotateMotorNoBelts".Translate());
+            yield return rotate;
         }
 
         void RotateToNextBelt()
@@ -119,7 +128,8 @@ namespace ConveyorBelts
             var st = comp.Sim.GetMotorStatus(Position.ToCell());
             string line = st.State switch
             {
-                MotorState.Driving => "CB_MotorDriving".Translate(st.LineTiles, st.Watts.ToString("0")).ToString(),
+                MotorState.Driving => "CB_MotorDriving".Translate(st.LineTiles, st.Watts.ToString("0")).ToString()
+                    + (power != null && !power.PowerOn ? " (" + "NoPower".Translate().ToString().UncapitalizeFirst() + ")" : ""),
                 MotorState.Standby => "CB_MotorStandby".Translate().ToString(),
                 _ => "CB_MotorIdle".Translate().ToString(),
             };

@@ -4,13 +4,13 @@
   <JobDef>
     <defName>CB_HaulFromBelt</defName>
     <driverClass>ConveyorBelts.JobDriver_TakeFromBelt</driverClass>
-    <reportString>taking TargetA from belt.</reportString>
+    <reportString>taking item from belt.</reportString>
     <suspendable>false</suspendable>
   </JobDef>
   <JobDef>
     <defName>CB_PickUpFromBelt</defName>
     <driverClass>ConveyorBelts.JobDriver_TakeFromBelt</driverClass>
-    <reportString>taking TargetA from belt.</reportString>
+    <reportString>taking item from belt.</reportString>
     <suspendable>false</suspendable>
   </JobDef>
 </Defs>
