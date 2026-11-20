@@ -13,6 +13,7 @@ namespace ConveyorBelts
     {
         CompPowerTrader power;
         MotorStatus status = new MotorStatus(MotorState.Idle, 0, BeltSim.MotorStandbyWatts);
+        int refaceAllowedTick;      // after a load, belts register in arbitrary order: keep the saved facing until the map settled
         internal bool SimPowered;   // last power state pushed to the sim
 
         static Texture2D rotateIcon;
@@ -26,7 +27,8 @@ namespace ConveyorBelts
             var comp = MapComponent_Belts.For(map);
             var sim = comp.Sim;
             var cell = Position.ToCell();
-            if (!sim.AdjacentBeltDirs(cell).Contains(Facing))
+            refaceAllowedTick = respawningAfterLoad ? Find.TickManager.TicksGame + 60 : 0;
+            if (!respawningAfterLoad && !sim.AdjacentBeltDirs(cell).Contains(Facing))
             {
                 var first = sim.AdjacentBeltDirs(cell).Cast<Dir?>().FirstOrDefault();
                 if (first.HasValue) Rotation = first.Value.ToRot4();
@@ -63,7 +65,7 @@ namespace ConveyorBelts
                 sim.SetMotorPowered(cell, SimPowered);
             }
             status = sim.GetMotorStatus(cell);
-            if (status.State == MotorState.Idle)
+            if (status.State == MotorState.Idle && Find.TickManager.TicksGame >= refaceAllowedTick)
             {
                 var first = sim.AdjacentBeltDirs(cell).Cast<Dir?>().FirstOrDefault();
                 if (first.HasValue)
