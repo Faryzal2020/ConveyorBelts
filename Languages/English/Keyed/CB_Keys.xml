@@ -7,4 +7,9 @@
   <CB_Running>running</CB_Running>
   <CB_Stopped>stopped</CB_Stopped>
   <CB_NoItems>none</CB_NoItems>
+  <CB_RotateMotor>Rotate motor</CB_RotateMotor>
+  <CB_RotateMotorDesc>Turn the motor to face the next adjacent belt.</CB_RotateMotorDesc>
+  <CB_MotorDriving>Driving {0} tiles, {1} W</CB_MotorDriving>
+  <CB_MotorStandby>Line already driven</CB_MotorStandby>
+  <CB_MotorIdle>No belt in front</CB_MotorIdle>
 </LanguageData>

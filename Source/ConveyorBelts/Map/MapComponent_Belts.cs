@@ -23,8 +23,36 @@ namespace ConveyorBelts
 
         public MapComponent_Belts(Map map) : base(map)
         {
-            Sim = new BeltSim(this) { RequireMotors = false };   // motors arrive in Task 8
+            Sim = new BeltSim(this) { RequireMotors = true };
             Store = new BeltItemStore(map);
+        }
+
+        readonly List<Building_BeltMotor> motors = new List<Building_BeltMotor>();
+
+        /// <summary>Registers the motor with the sim. The sim's "first-registered" rule must not depend on save/spawn
+        /// order, so all motors are (re)registered in thingIDNumber order.</summary>
+        public void RegisterMotor(Building_BeltMotor m)
+        {
+            if (!motors.Contains(m)) motors.Add(m);
+            ReregisterMotors(null);
+        }
+
+        public void UnregisterMotor(Building_BeltMotor m)
+        {
+            motors.Remove(m);
+            Sim.RemoveMotor(m.Position.ToCell());
+            ReregisterMotors(null);
+        }
+
+        void ReregisterMotors(object _)
+        {
+            foreach (var m in motors) Sim.RemoveMotor(m.Position.ToCell());
+            motors.Sort((a, b) => a.thingIDNumber.CompareTo(b.thingIDNumber));
+            foreach (var m in motors)
+            {
+                Sim.AddMotor(m.Position.ToCell(), m.Facing);
+                Sim.SetMotorPowered(m.Position.ToCell(), m.SimPowered);
+            }
         }
 
         public static MapComponent_Belts For(Map map) => map?.GetComponent<MapComponent_Belts>();

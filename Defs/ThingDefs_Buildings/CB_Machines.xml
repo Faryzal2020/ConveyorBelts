@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Defs>
+  <ThingDef Abstract="True" Name="CB_MachineBase" ParentName="BuildingBase">
+    <category>Building</category>
+    <graphicData>
+      <graphicClass>Graphic_Multi</graphicClass>
+      <drawSize>(1,1)</drawSize>
+    </graphicData>
+    <size>(1,1)</size>
+    <altitudeLayer>Building</altitudeLayer>
+    <passability>Standable</passability>
+    <rotatable>true</rotatable>
+    <selectable>true</selectable>
+    <useHitPoints>true</useHitPoints>
+    <leaveResourcesWhenKilled>true</leaveResourcesWhenKilled>
+    <designationCategory>CB_Conveyors</designationCategory>
+    <statBases>
+      <MaxHitPoints>100</MaxHitPoints>
+      <WorkToBuild>400</WorkToBuild>
+      <Flammability>0.5</Flammability>
+      <Beauty>-2</Beauty>
+    </statBases>
+    <costList>
+      <Steel>10</Steel>
+      <ComponentIndustrial>1</ComponentIndustrial>
+    </costList>
+  </ThingDef>
+
+  <ThingDef ParentName="CB_MachineBase">
+    <defName>CB_BeltMotor</defName>
+    <label>belt motor</label>
+    <description>Drives the conveyor line it faces. Draws 20 W plus the line's per-tile power while driving, 5 W otherwise. If several motors face one line, the first powered one drives it.</description>
+    <thingClass>ConveyorBelts.Building_BeltMotor</thingClass>
+    <tickerType>Normal</tickerType>
+    <graphicData>
+      <texPath>ConveyorBelts/Motor</texPath>
+    </graphicData>
+    <uiIconPath>ConveyorBelts/Motor_north</uiIconPath>
+    <comps>
+      <li Class="CompProperties_Power">
+        <compClass>CompPowerTrader</compClass>
+        <basePowerConsumption>5</basePowerConsumption>
+        <shortCircuitInRain>false</shortCircuitInRain>
+      </li>
+    </comps>
+  </ThingDef>
+</Defs>
