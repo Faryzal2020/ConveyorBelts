@@ -193,30 +193,112 @@ namespace ConveyorBelts
 
         static string Describe(Building_InputPort p)
         {
-            var sec = p.FilterSection;
             var held = p.HeldThing;
-            return $"port {p.thingIDNumber} at {p.Position}: priority={sec.Priority} allowed=[{string.Join(", ", sec.AllowedDefs().Select(d => d.defName))}] " +
+            return $"port {p.thingIDNumber} at {p.Position}: priority={p.PrioritySection.Priority} allowed={p.FilterSection.AllowedDefs().Count} " +
                    $"held={(held == null ? "none" : held.def.defName + " x" + held.stackCount)} powered={p.Powered}";
         }
 
-        [DebugAction(Cat, "Allow steel on all input ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void AllowSteelOnPorts()
+        static string Check(bool ok) => ok ? "PASS" : "FAIL";
+
+        /// <summary>Runs the filter operations in the order a player would click them and logs PASS/FAIL after each.</summary>
+        [DebugAction(Cat, "Test: filter ops on input ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void TestFilterOps()
+        {
+            var raw = ThingCategoryDefOf.ResourcesRaw;
+            var steel = ThingDefOf.Steel;
+            foreach (var p in InputPorts(Find.CurrentMap))
+            {
+                var s = p.FilterSection;
+                var filter = p.GetStoreSettings().filter;
+                string State() => $"allowed={s.AllowedDefs().Count} raw={s.CategoryState(raw)} steel={filter.Allows(steel)}";
+                Log.Message($"[CB] filter test on port {p.thingIDNumber}: listable defs={s.AllDefs().Count}");
+                s.SearchText = "";
+
+                s.ClearAll();
+                Log.Message($"[CB]   ClearAll: {State()} filterCount={filter.AllowedDefCount} -> {Check(s.AllowedDefs().Count == 0 && filter.AllowedDefCount == 0)}");
+
+                s.SetCategory(raw, true);
+                int n = s.AllowedDefs().Count;
+                Log.Message($"[CB]   SetCategory(ResourcesRaw, true): {State()} [{string.Join(", ", s.AllowedDefs().Select(d => d.defName))}] -> {Check(n > 0 && s.CategoryState(raw) == MultiCheckboxState.On)}");
+
+                s.SetItem(steel, false);
+                bool steelListed = s.AllowedDefs().Contains(steel);
+                Log.Message($"[CB]   SetItem(Steel, false): {State()} steelInAllowed={steelListed} -> {Check(s.CategoryState(raw) == MultiCheckboxState.Partial && !steelListed && s.AllowedDefs().Count == n - 1)}");
+
+                s.SearchText = "ste";
+                var res = s.Results();
+                bool hasSteel = res.Any(r => r.Def == steel);
+                int cats = res.Count(r => r.Category != null);
+                string List(List<FilterSearchResult> rs) => string.Join("; ", rs.Select(r => r.Label + " (" + r.Tag + ")" + (r.Def != null ? (filter.Allows(r.Def) ? " on" : " off") : " " + s.CategoryState(r.Category))));
+                // No core category label contains "ste"; categories are checked with "stone" below.
+                Log.Message($"[CB]   SearchText='ste': {res.Count} results, categories={cats}, allAllowed={s.AllResultsAllowed()} -> {Check(hasSteel)}");
+                Log.Message($"[CB]     [{List(res)}]");
+                s.SearchText = "stone";
+                var stone = s.Results();
+                int stoneCats = stone.Count(r => r.Category != null);
+                Log.Message($"[CB]   SearchText='stone': {stone.Count} results, categories={stoneCats} -> {Check(stoneCats >= 1 && stone.Any(r => r.Def != null))}");
+                Log.Message($"[CB]     [{List(stone)}]");
+                s.SearchText = "STEEL";
+                Log.Message($"[CB]   SearchText='STEEL' (case): {s.Results().Count} results, steel={s.Results().Any(r => r.Def == steel)}");
+                s.SearchText = "ste";
+
+                s.SetAllResults(true);
+                Log.Message($"[CB]   SetAllResults(true): {State()} allAllowed={s.AllResultsAllowed()} -> {Check(filter.Allows(steel) && s.AllResultsAllowed())}");
+                s.SetAllResults(false);
+                Log.Message($"[CB]   SetAllResults(false): {State()} allAllowed={s.AllResultsAllowed()} -> {Check(!filter.Allows(steel) && res.All(r => r.Def == null || !filter.Allows(r.Def)))}");
+                s.SetAllResults(true);
+                s.SearchText = "";
+
+                s.AllowAll();
+                var fixedDefs = p.def.building.fixedStorageSettings.filter.AllowedThingDefs.ToList();
+                var missing = fixedDefs.Where(d => !filter.Allows(d)).ToList();
+                Log.Message($"[CB]   AllowAll: {State()} listable={s.AllDefs().Count} fixedDefs={fixedDefs.Count} notAllowed={missing.Count} " +
+                            $"[{string.Join(", ", missing.Take(20).Select(d => d.defName + (d.PlayerAcquirable ? "" : "(!acquirable)") + (d.virtualDefParent != null ? "(virtual)" : "")))}] " +
+                            $"-> {Check(s.AllDefs().All(filter.Allows) && s.CategoryState(raw) == MultiCheckboxState.On)}");
+
+                var offSpecial = DefDatabase<SpecialThingFilterDef>.AllDefs.Where(sf => !filter.Allows(sf)).Select(sf => sf.defName);
+                Log.Message($"[CB]   special filters disallowed on this port (untouched by the tab): [{string.Join(", ", offSpecial)}]");
+                s.ClearAll();
+                Log.Message($"[CB]   reset: {Describe(p)}");
+            }
+
+            // fixedFilter = null (what the Pusher will pass): every storable def, corpses included.
+            var own = new ThingFilter();
+            var free = new Section_ItemFilter(() => own, () => null);
+            var corpse = DefDatabase<ThingDef>.AllDefs.FirstOrDefault(d => d.IsCorpse && d.PlayerAcquirable);
+            bool corpseListed = corpse != null && free.AllDefs().Contains(corpse);
+            free.AllowAll();
+            Log.Message($"[CB]   null fixed filter: listable={free.AllDefs().Count} corpse={corpse?.defName} listed={corpseListed} " +
+                        $"corpses={free.CategoryState(ThingCategoryDefOf.Corpses)} allowed={free.AllowedDefs().Count} -> " +
+                        $"{Check(corpseListed && free.AllowedDefs().Count == free.AllDefs().Count && free.CategoryState(ThingCategoryDefOf.Corpses) == MultiCheckboxState.On)}");
+            free.ClearAll();
+            Log.Message($"[CB]   null fixed filter ClearAll: allowed={free.AllowedDefs().Count} own={own.AllowedDefCount}");
+        }
+
+        /// <summary>Review focus 5: allow Raw resources, ✕ Steel, priority Critical. Spawn steel + wood nearby and tick.</summary>
+        [DebugAction(Cat, "Test: input ports allow raw resources except steel", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PortsRawExceptSteel()
         {
             foreach (var p in InputPorts(Find.CurrentMap))
             {
-                bool ok = p.FilterSection.Allow(ThingDefOf.Steel);
-                Log.Message($"[CB] allow Steel: {ok}; {Describe(p)}");
+                var s = p.FilterSection;
+                s.ClearAll();
+                s.SetCategory(ThingCategoryDefOf.ResourcesRaw, true);
+                s.SetItem(ThingDefOf.Steel, false);
+                p.PrioritySection.SetPriority(StoragePriority.Critical);
+                Log.Message($"[CB] {Describe(p)} raw={s.CategoryState(ThingCategoryDefOf.ResourcesRaw)} steel={p.GetStoreSettings().filter.Allows(ThingDefOf.Steel)} " +
+                            $"wood={p.GetStoreSettings().filter.Allows(ThingDefOf.WoodLog)} acceptsSteel={p.Accepts(ThingMaker.MakeThing(ThingDefOf.Steel))} acceptsWood={p.Accepts(ThingMaker.MakeThing(ThingDefOf.WoodLog))}");
             }
         }
 
-        [DebugAction(Cat, "Remove steel from all input ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void RemoveSteelFromPorts()
+        [DebugAction(Cat, "Test: log steel and wood positions", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void LogSteelWood()
         {
-            foreach (var p in InputPorts(Find.CurrentMap))
-            {
-                p.FilterSection.Disallow(ThingDefOf.Steel);
-                Log.Message($"[CB] remove Steel; {Describe(p)}");
-            }
+            var map = Find.CurrentMap;
+            foreach (var def in new[] { ThingDefOf.Steel, ThingDefOf.WoodLog })
+                foreach (var t in map.listerThings.ThingsOfDef(def))
+                    Log.Message($"[CB] {def.defName} x{t.stackCount} id={t.thingIDNumber} at {t.Position} spawned={t.Spawned} onPort={t.Position.GetFirstThing<Building_InputPort>(map) != null} carriedBy={(t.ParentHolder as Pawn_CarryTracker)?.pawn?.LabelShort ?? "-"}");
+            foreach (var p in InputPorts(map)) Log.Message($"[CB] {Describe(p)}");
         }
 
         [DebugAction(Cat, "Cycle input port priority", allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -224,30 +306,24 @@ namespace ConveyorBelts
         {
             foreach (var p in InputPorts(Find.CurrentMap))
             {
-                var sec = p.FilterSection;
+                var sec = p.PrioritySection;
                 var next = sec.Priority >= StoragePriority.Critical ? StoragePriority.Low : sec.Priority + 1;
                 sec.SetPriority(next);
                 Log.Message($"[CB] priority -> {next}; {Describe(p)}");
             }
         }
 
-        [DebugAction(Cat, "Log input ports and search", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        [DebugAction(Cat, "Log input ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void LogPorts()
         {
             foreach (var p in InputPorts(Find.CurrentMap))
             {
-                Log.Message($"[CB] {Describe(p)}");
+                Log.Message($"[CB] {Describe(p)} allowedDefs=[{string.Join(", ", p.FilterSection.AllowedDefs().Select(d => d.defName))}]");
                 Log.Message($"[CB]   tabs=[{string.Join(", ", p.GetInspectTabs()?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
-                foreach (var q in new[] { "ste", "STEEL", "zzzz", "" })
-                {
-                    var res = p.FilterSection.Search(q, Section_InputFilter.MaxSearchResults, out int total);
-                    Log.Message($"[CB]   search '{q}': total={total} shown={res.Count} [{string.Join(", ", res.Select(d => d.label))}]");
-                }
-                var wide = p.FilterSection.Search("a", Section_InputFilter.MaxSearchResults, out int wideTotal);
-                Log.Message($"[CB]   search 'a': total={wideTotal} shown={wide.Count}");
             }
         }
 
+        /// <summary>Selects the first input port, opens its Port tab (browsing, Raw resources and Weapons expanded) for a screenshot.</summary>
         [DebugAction(Cat, "Select first input port and open Port tab", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void OpenPortTab()
         {
@@ -255,12 +331,30 @@ namespace ConveyorBelts
             if (p == null) { Log.Warning("[CB] no input port"); return; }
             Find.Selector.ClearSelection();
             Find.Selector.Select(p, playSound: false);
-            p.FilterSection.SearchText = "ste";   // what a player would type; the screenshot shows the matches
+            var s = p.FilterSection;
+            s.SearchText = "";
+            foreach (var name in new[] { "ResourcesRaw", "Weapons" })
+                s.SetExpanded(DefDatabase<ThingCategoryDef>.GetNamedSilentFail(name), true);
             PortGizmos.OpenPortTab();
             var pane = (MainTabWindow_Inspect)MainButtonDefOf.Inspect.TabWindow;
             Find.CameraDriver.SetRootPosAndSize(p.Position.ToVector3Shifted(), 8f);
             Log.Message($"[CB] selected {p}; openTab={pane.OpenTabType?.Name ?? "none"} curTabs=[{string.Join(", ", pane.CurTabs?.Select(t => t.GetType().Name) ?? Enumerable.Empty<string>())}]");
         }
+
+        /// <summary>Types text into the first input port's search box (what a player would type).</summary>
+        static void Search(string text)
+        {
+            var p = InputPorts(Find.CurrentMap).FirstOrDefault();
+            if (p == null) { Log.Warning("[CB] no input port"); return; }
+            p.FilterSection.SearchText = text;
+            Log.Message($"[CB] search '{text}': {p.FilterSection.Results().Count} results");
+        }
+
+        [DebugAction(Cat, "Port tab: search 'ste' on first input port", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void SearchSte() => Search("ste");
+
+        [DebugAction(Cat, "Port tab: search 'stone' on first input port", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void SearchStone() => Search("stone");
 
         // ---- Output port ----
 

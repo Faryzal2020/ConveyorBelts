@@ -7,7 +7,7 @@ namespace ConveyorBelts
     /// <summary>The single inspect tab of every port: a header plus the selected owner's sections in a scroll view.</summary>
     public class ITab_Port : ITab
     {
-        static readonly Vector2 WinSize = new Vector2(420f, 480f);
+        static readonly Vector2 WinSize = new Vector2(560f, 560f);
         const float HeaderHeight = 32f;
         const float SectionGap = 12f;
 

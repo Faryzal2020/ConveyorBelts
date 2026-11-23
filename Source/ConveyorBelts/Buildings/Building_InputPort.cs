@@ -18,15 +18,26 @@ namespace ConveyorBelts
 
         public bool Powered => power == null || power.PowerOn;
 
-        /// <summary>The section the Port tab draws; its operations are what the tab's buttons call.</summary>
-        public Section_InputFilter FilterSection
+        /// <summary>The Port tab's haul priority row.</summary>
+        public Section_HaulPriority PrioritySection
         {
-            get { EnsureSections(); return (Section_InputFilter)sections[0]; }
+            get { EnsureSections(); return (Section_HaulPriority)sections[0]; }
         }
 
+        /// <summary>The Port tab's item filter; its operations are what the tab's widgets call.</summary>
+        public Section_ItemFilter FilterSection
+        {
+            get { EnsureSections(); return (Section_ItemFilter)sections[1]; }
+        }
+
+        // GetStoreSettings() rather than the settings field: with linked storage groups the group's settings are the live ones.
         void EnsureSections()
         {
-            sections ??= new List<PortTabSection> { new Section_InputFilter(this) };
+            sections ??= new List<PortTabSection>
+            {
+                new Section_HaulPriority(this),
+                new Section_ItemFilter(() => GetStoreSettings().filter, () => def.building.fixedStorageSettings?.filter),
+            };
         }
 
         public IEnumerable<PortTabSection> TabSections
