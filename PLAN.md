@@ -2,7 +2,7 @@
 
 Status: **v1 implemented; v1.1 implemented on `feat/v1.1`.** Where `docs/superpowers/specs/2026-11-23-v1.1-design.md` differs from this file it wins (§5.2 Shift, §5.7 tab sketch and §5.9 Pusher are superseded). v1 was on branch `feat/v1` (all 14 plan tasks plus the final-review fix wave; unit
 tests and headless/windowed harness checks in `.superpowers/sdd/2026-11-20-conveyorbelts-v1/`). Still
-pending: the manual UI checks listed in `README.md` (mouse placement, gizmo clicks, Port tab clicks).
+pending: the manual UI checks listed in `docs/NOTES.md` (mouse placement, gizmo clicks, Port tab clicks).
 The design below is the approved rev 2 text; measured results are folded into §5.6.
 Target: RimWorld 1.7 (the CoreCLR / Waylith build installed on this Mac), Core only (no DLCs are installed).
 Date: 2026-11-20
@@ -467,7 +467,7 @@ belt state); those go in the harness repo, not this mod.
    (its parents `CB_MachineBase`/`BuildingBase` list none), so the inspect pane shows just "Port". Verified in game:
    `GetInspectTabs()` = [ITab_Port], and a windowed screenshot shows only the Port tab button. The vanilla copy/paste
    and link-settings gizmos stay (`storageGroupTag` `CB_InputPort`, so ports link only with ports).
-4. **Mod conflicts** with other mods touching designators or storage → low for v1; note in README.
+4. **Mod conflicts** with other mods touching designators or storage → low for v1; note in `docs/NOTES.md`.
 
 ---
 
