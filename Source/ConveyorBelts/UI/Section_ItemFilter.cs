@@ -31,7 +31,11 @@ namespace ConveyorBelts
     /// "Disallow all". Right: every allowed item with ✕. Edits the ThingFilter that <c>filter</c> returns; the items it
     /// lists are those <c>fixedFilter</c> allows (null = every storable def, corpses included). The IMGUI code only wires
     /// widgets to the public operations (also used by the debug actions). Derived lists are cached and rebuilt only when
-    /// the filter's allowed count, the search text, the filter instance or one of our own toggles changes.
+    /// the filter's contents (allowed defs + special filters, as a cheap signature), the search text, the filter instance
+    /// or one of our own toggles changes.
+    /// Vanilla special thing filters (e.g. colonist corpses) get no rows of their own: allowing a category, an item or
+    /// everything also allows the special filters that can apply to it, and a category box is On only when they are
+    /// allowed too, so the tab never shows something as allowed that vanilla would still refuse.
     /// </summary>
     public class Section_ItemFilter : PortTabSection
     {
@@ -54,10 +58,16 @@ namespace ConveyorBelts
         List<ThingDef> candidates;
         HashSet<ThingDef> candidateSet;
         readonly Dictionary<ThingCategoryDef, List<ThingDef>> catDefs = new Dictionary<ThingCategoryDef, List<ThingDef>>();
+        // Configurable special filters the fixed filter allows, and which of them can apply to a category / an item.
+        List<SpecialThingFilterDef> specialCandidates;
+        readonly Dictionary<ThingCategoryDef, List<SpecialThingFilterDef>> catSpecials = new Dictionary<ThingCategoryDef, List<SpecialThingFilterDef>>();
+        readonly Dictionary<ThingCategoryDef, List<SpecialThingFilterDef>> catOwnSpecials = new Dictionary<ThingCategoryDef, List<SpecialThingFilterDef>>();
+        readonly Dictionary<ThingDef, List<SpecialThingFilterDef>> defSpecials = new Dictionary<ThingDef, List<SpecialThingFilterDef>>();
 
         // Allowed-state caches, dropped by Sync().
         ThingFilter syncFilter;
-        int syncCount = -1, syncEdits = -1, edits;
+        int syncCount = -1, syncEdits = -1, edits, syncSig;
+        bool inDraw, sigChecked;   // during Draw the content signature is computed once, not on every Filter access
         List<ThingDef> allowedCache;
         readonly Dictionary<ThingCategoryDef, MultiCheckboxState> stateCache = new Dictionary<ThingCategoryDef, MultiCheckboxState>();
         bool? allResultsAllowedCache;
@@ -106,16 +116,41 @@ namespace ConveyorBelts
             get
             {
                 var f = filterGetter();
-                if (f != syncFilter || f.AllowedDefCount != syncCount || edits != syncEdits)
+                bool changed = f != syncFilter || f.AllowedDefCount != syncCount || edits != syncEdits;
+                if (!changed && !(inDraw && sigChecked))
                 {
+                    changed = Signature(f) != syncSig;
+                    sigChecked = true;
+                }
+                if (changed)
+                {
+                    sigChecked = true;
                     syncFilter = f;
                     syncCount = f.AllowedDefCount;
                     syncEdits = edits;
+                    syncSig = Signature(f);
                     allowedCache = null;
                     stateCache.Clear();
                     allResultsAllowedCache = null;
                 }
                 return f;
+            }
+        }
+
+        /// <summary>Cheap content hash: allowed defs (order-independent) and which special filters are disallowed.</summary>
+        static int Signature(ThingFilter f)
+        {
+            unchecked
+            {
+                uint h = (uint)f.AllowedDefCount;
+                if (f.AllowedThingDefs is HashSet<ThingDef> set)
+                    foreach (var d in set) h += (d.shortHash + 1u) * 2654435761u;
+                else
+                    foreach (var d in f.AllowedThingDefs) h += (d.shortHash + 1u) * 2654435761u;
+                var specials = DefDatabase<SpecialThingFilterDef>.AllDefsListForReading;
+                for (int i = 0; i < specials.Count; i++)
+                    if (!f.Allows(specials[i])) h = h * 31u + (uint)(i + 1);
+                return (int)h;
             }
         }
 
@@ -142,6 +177,12 @@ namespace ConveyorBelts
                 candidates = new List<ThingDef>(set);
                 candidates.Sort(ByLabel);
                 catDefs.Clear();
+                specialCandidates = new List<SpecialThingFilterDef>();
+                foreach (var sf in DefDatabase<SpecialThingFilterDef>.AllDefsListForReading)
+                    if (sf.configurable && sf.parentCategory != null && (fixedF == null || fixedF.Allows(sf))) specialCandidates.Add(sf);
+                catSpecials.Clear();
+                catOwnSpecials.Clear();
+                defSpecials.Clear();
                 treeRows = null;
                 resultsFor = null;
                 resultsCache = null;
@@ -172,6 +213,64 @@ namespace ConveyorBelts
             return list;
         }
 
+        /// <summary>
+        /// Special filters that can apply to a listable def in cat: their category is cat, inside it or above it, and
+        /// their worker can match such a def. own = only those whose category is cat or inside it (what vanilla's
+        /// SetAllow(category, false) also clears).
+        /// </summary>
+        List<SpecialThingFilterDef> CatSpecials(ThingCategoryDef cat, bool own)
+        {
+            _ = Candidates;
+            var dict = own ? catOwnSpecials : catSpecials;
+            if (dict.TryGetValue(cat, out var list)) return list;
+            var all = new List<SpecialThingFilterDef>();
+            var inside = new List<SpecialThingFilterDef>();
+            var defs = CatDefs(cat);
+            foreach (var sf in specialCandidates)
+            {
+                bool below = false, above = false;
+                foreach (var c in cat.ThisAndChildCategoryDefs) if (c == sf.parentCategory) { below = true; break; }
+                if (!below) foreach (var c in cat.Parents) if (c == sf.parentCategory) { above = true; break; }
+                if (!below && !above) continue;
+                bool applies = false;
+                foreach (var d in defs)
+                    if (d.IsWithinCategory(sf.parentCategory) && sf.Worker.CanEverMatch(d)) { applies = true; break; }
+                if (!applies) continue;
+                all.Add(sf);
+                if (below) inside.Add(sf);
+            }
+            catSpecials[cat] = all;
+            catOwnSpecials[cat] = inside;
+            return own ? inside : all;
+        }
+
+        /// <summary>Special filters that can apply to things of def.</summary>
+        List<SpecialThingFilterDef> DefSpecials(ThingDef def)
+        {
+            _ = Candidates;
+            if (defSpecials.TryGetValue(def, out var list)) return list;
+            list = new List<SpecialThingFilterDef>();
+            foreach (var sf in specialCandidates)
+                if (def.IsWithinCategory(sf.parentCategory) && sf.Worker.CanEverMatch(def)) list.Add(sf);
+            defSpecials[def] = list;
+            return list;
+        }
+
+        static void SetSpecials(ThingFilter f, List<SpecialThingFilterDef> list, bool allow)
+        {
+            foreach (var sf in list) f.SetAllow(sf, allow);
+        }
+
+        /// <summary>Allows / disallows every listable def in cat with its special filters (all that apply on allow, cat's own on disallow).</summary>
+        void SetCategoryIn(ThingFilter f, ThingCategoryDef cat, bool allow)
+        {
+            foreach (var d in CatDefs(cat)) f.SetAllow(d, allow);
+            SetSpecials(f, CatSpecials(cat, own: !allow), allow);
+        }
+
+        /// <summary>The special filters the tab manages (configurable, allowed by the fixed filter).</summary>
+        public List<SpecialThingFilterDef> ManagedSpecialFilters() { _ = Candidates; return specialCandidates; }
+
         // ---- operations (the widgets and the debug actions call these) ----
 
         /// <summary>Every def this filter can list (the fixed filter applied), sorted by label.</summary>
@@ -182,6 +281,7 @@ namespace ConveyorBelts
         {
             var f = Filter;
             foreach (var d in Candidates) f.SetAllow(d, true);
+            SetSpecials(f, specialCandidates, true);
             edits++;
         }
 
@@ -191,6 +291,7 @@ namespace ConveyorBelts
             var f = Filter;
             var all = new List<ThingDef>(f.AllowedThingDefs);
             foreach (var d in all) f.SetAllow(d, false);
+            SetSpecials(f, ManagedSpecialFilters(), false);
             edits++;
         }
 
@@ -198,12 +299,14 @@ namespace ConveyorBelts
         public void SetCategory(ThingCategoryDef cat, bool allow)
         {
             if (cat == null) return;
-            var f = Filter;
-            foreach (var d in CatDefs(cat)) f.SetAllow(d, allow);
+            SetCategoryIn(Filter, cat, allow);
             edits++;
         }
 
-        /// <summary>On / Partial / Off over the listable defs in cat and its subcategories.</summary>
+        /// <summary>
+        /// On / Partial / Off over the listable defs in cat and its subcategories (vanilla rule: Off when no def is
+        /// allowed; On only when every def and every special filter that can apply to them is allowed).
+        /// </summary>
         public MultiCheckboxState CategoryState(ThingCategoryDef cat)
         {
             var f = Filter;
@@ -212,12 +315,14 @@ namespace ConveyorBelts
             var list = CatDefs(cat);
             int n = 0;
             foreach (var d in list) if (f.Allows(d)) n++;
-            s = n == 0 ? MultiCheckboxState.Off : n == list.Count ? MultiCheckboxState.On : MultiCheckboxState.Partial;
+            bool specialsOn = true;
+            foreach (var sf in CatSpecials(cat, own: false)) if (!f.Allows(sf)) { specialsOn = false; break; }
+            s = n == 0 ? MultiCheckboxState.Off : n == list.Count && specialsOn ? MultiCheckboxState.On : MultiCheckboxState.Partial;
             stateCache[cat] = s;
             return s;
         }
 
-        /// <summary>Allows (only if listable) or disallows one def.</summary>
+        /// <summary>Allows (only if listable, with the special filters that can apply to it) or disallows one def.</summary>
         public void SetItem(ThingDef def, bool allow)
         {
             if (def == null) return;
@@ -225,6 +330,7 @@ namespace ConveyorBelts
             _ = Candidates;
             if (allow && !candidateSet.Contains(def)) return;
             f.SetAllow(def, allow);
+            if (allow) SetSpecials(f, DefSpecials(def), true);
             edits++;
         }
 
@@ -279,8 +385,12 @@ namespace ConveyorBelts
             var f = Filter;
             foreach (var r in Results())
             {
-                if (r.Def != null) f.SetAllow(r.Def, allow);
-                else foreach (var d in CatDefs(r.Category)) f.SetAllow(d, allow);
+                if (r.Def != null)
+                {
+                    f.SetAllow(r.Def, allow);
+                    if (allow) SetSpecials(f, DefSpecials(r.Def), true);
+                }
+                else SetCategoryIn(f, r.Category, allow);
             }
             edits++;
         }
@@ -335,6 +445,14 @@ namespace ConveyorBelts
         // ---- drawing ----
 
         public override float Draw(Rect rect)
+        {
+            inDraw = true;
+            sigChecked = false;
+            try { return DrawInner(rect); }
+            finally { inDraw = false; }
+        }
+
+        float DrawInner(Rect rect)
         {
             _ = Filter;
             float x = rect.x, w = rect.width, y = rect.y;

@@ -256,8 +256,43 @@ namespace ConveyorBelts
                             $"[{string.Join(", ", missing.Take(20).Select(d => d.defName + (d.PlayerAcquirable ? "" : "(!acquirable)") + (d.virtualDefParent != null ? "(virtual)" : "")))}] " +
                             $"-> {Check(s.AllDefs().All(filter.Allows) && s.CategoryState(raw) == MultiCheckboxState.On)}");
 
-                var offSpecial = DefDatabase<SpecialThingFilterDef>.AllDefs.Where(sf => !filter.Allows(sf)).Select(sf => sf.defName);
-                Log.Message($"[CB]   special filters disallowed on this port (untouched by the tab): [{string.Join(", ", offSpecial)}]");
+                var managed = s.ManagedSpecialFilters();
+                var offSpecial = managed.Where(sf => !filter.Allows(sf)).Select(sf => sf.defName).ToList();
+                var fixedOff = DefDatabase<SpecialThingFilterDef>.AllDefs.Where(sf => !p.def.building.fixedStorageSettings.filter.Allows(sf)).Select(sf => sf.defName);
+                Log.Message($"[CB]   AllowAll special filters: managed={managed.Count} disallowed=[{string.Join(", ", offSpecial)}] fixedFilterDisallows=[{string.Join(", ", fixedOff)}] -> {Check(offSpecial.Count == 0)}");
+
+                // Special filters follow the category (corpses: colonist / stranger).
+                var corpses = ThingCategoryDefOf.Corpses;
+                var colonist = DefDatabase<SpecialThingFilterDef>.GetNamed("AllowCorpsesColonist");
+                var stranger = DefDatabase<SpecialThingFilterDef>.GetNamed("AllowCorpsesStranger");
+                string Corpses() => $"corpses={s.CategoryState(corpses)} colonistSF={filter.Allows(colonist)} strangerSF={filter.Allows(stranger)}";
+                s.ClearAll();
+                Log.Message($"[CB]   ClearAll: {Corpses()} managedOff={managed.Count(sf => !filter.Allows(sf))}/{managed.Count} -> {Check(!filter.Allows(colonist) && managed.All(sf => !filter.Allows(sf)))}");
+                s.SetCategory(corpses, true);
+                Log.Message($"[CB]   SetCategory(Corpses, true): {Corpses()} -> {Check(s.CategoryState(corpses) == MultiCheckboxState.On && filter.Allows(colonist) && filter.Allows(stranger))}");
+                filter.SetAllow(colonist, false);   // outside change: same def count, no tab toggle
+                Log.Message($"[CB]   outside SetAllow(AllowCorpsesColonist, false): {Corpses()} -> {Check(s.CategoryState(corpses) == MultiCheckboxState.Partial)}");
+                s.SetCategory(corpses, false);
+                Log.Message($"[CB]   SetCategory(Corpses, false): {Corpses()} -> {Check(s.CategoryState(corpses) == MultiCheckboxState.Off && !filter.Allows(colonist))}");
+                var human = DefDatabase<ThingDef>.GetNamed("Corpse_Human");
+                s.SetItem(human, true);
+                Log.Message($"[CB]   SetItem(Corpse_Human, true): {Corpses()} -> {Check(filter.Allows(human) && filter.Allows(colonist) && filter.Allows(stranger))}");
+                s.SearchText = "corpses";
+                s.SetAllResults(false);
+                Log.Message($"[CB]   'corpses' SetAllResults(false): {Corpses()} -> {Check(s.CategoryState(corpses) == MultiCheckboxState.Off && !filter.Allows(colonist))}");
+                s.SetAllResults(true);
+                Log.Message($"[CB]   'corpses' SetAllResults(true): {Corpses()} allAllowed={s.AllResultsAllowed()} -> {Check(s.CategoryState(corpses) == MultiCheckboxState.On && filter.Allows(colonist))}");
+                s.SearchText = "";
+
+                // Stale-cache check: swap one allowed def for another outside the tab (same count, no toggle).
+                s.ClearAll();
+                s.SetCategory(raw, true);
+                int before = s.AllowedDefs().Count;
+                var meal = ThingDefOf.MealSimple;
+                filter.SetAllow(steel, false);
+                filter.SetAllow(meal, true);
+                var after = s.AllowedDefs();
+                Log.Message($"[CB]   outside swap Steel -> {meal.defName}: allowed {before} -> {after.Count} steel={after.Contains(steel)} meal={after.Contains(meal)} raw={s.CategoryState(raw)} -> {Check(after.Count == before && !after.Contains(steel) && after.Contains(meal) && s.CategoryState(raw) == MultiCheckboxState.Partial)}");
                 s.ClearAll();
                 Log.Message($"[CB]   reset: {Describe(p)}");
             }
@@ -289,6 +324,52 @@ namespace ConveyorBelts
                 Log.Message($"[CB] {Describe(p)} raw={s.CategoryState(ThingCategoryDefOf.ResourcesRaw)} steel={p.GetStoreSettings().filter.Allows(ThingDefOf.Steel)} " +
                             $"wood={p.GetStoreSettings().filter.Allows(ThingDefOf.WoodLog)} acceptsSteel={p.Accepts(ThingMaker.MakeThing(ThingDefOf.Steel))} acceptsWood={p.Accepts(ThingMaker.MakeThing(ThingDefOf.WoodLog))}");
             }
+        }
+
+        static void SetCorpseFilter(bool allCorpses)
+        {
+            foreach (var p in InputPorts(Find.CurrentMap))
+            {
+                var s = p.FilterSection;
+                s.ClearAll();
+                if (allCorpses) s.SetCategory(ThingCategoryDefOf.Corpses, true);
+                else s.SetCategory(DefDatabase<ThingCategoryDef>.GetNamed("CorpsesAnimal"), true);
+                p.PrioritySection.SetPriority(StoragePriority.Critical);
+                var f = p.GetStoreSettings().filter;
+                Log.Message($"[CB] {Describe(p)} corpses={s.CategoryState(ThingCategoryDefOf.Corpses)} humanDef={f.Allows(DefDatabase<ThingDef>.GetNamed("Corpse_Human"))} " +
+                            $"colonistSF={f.Allows(DefDatabase<SpecialThingFilterDef>.GetNamed("AllowCorpsesColonist"))}");
+            }
+        }
+
+        [DebugAction(Cat, "Test: input ports allow all corpses", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PortsAllCorpses() => SetCorpseFilter(true);
+
+        [DebugAction(Cat, "Test: input ports allow animal corpses only", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PortsAnimalCorpses() => SetCorpseFilter(false);
+
+        /// <summary>Generates a colonist two cells east of the first input port and kills it (a colonist corpse).</summary>
+        [DebugAction(Cat, "Test: colonist corpse beside first input port", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void ColonistCorpse()
+        {
+            var map = Find.CurrentMap;
+            var p = InputPorts(map).FirstOrDefault();
+            if (p == null) { Log.Warning("[CB] no input port"); return; }
+            var pawn = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
+            GenSpawn.Spawn(pawn, p.Position + new IntVec3(2, 0, 0), map);
+            pawn.Kill(null);
+            var corpse = pawn.Corpse;
+            Log.Message($"[CB] colonist corpse id={corpse?.thingIDNumber} at {corpse?.Position} accepted={(corpse != null && p.Accepts(corpse))}");
+        }
+
+        [DebugAction(Cat, "Test: log corpses and input ports", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void LogCorpses()
+        {
+            var map = Find.CurrentMap;
+            foreach (var t in map.listerThings.ThingsInGroup(ThingRequestGroup.Corpse))
+                if (t is Corpse c && c.InnerPawn.RaceProps.Humanlike)
+                    Log.Message($"[CB] corpse {c.thingIDNumber} {c.InnerPawn.LabelShort} faction={c.InnerPawn.Faction?.Name ?? "none"} at {c.Position} spawned={c.Spawned} " +
+                                $"onPort={c.Spawned && c.Position.GetFirstThing<Building_InputPort>(map) != null} acceptedByPort={InputPorts(map).FirstOrDefault()?.Accepts(c)}");
+            foreach (var p in InputPorts(map)) Log.Message($"[CB] {Describe(p)}");
         }
 
         [DebugAction(Cat, "Test: log steel and wood positions", allowedGameStates = AllowedGameStates.PlayingOnMap)]

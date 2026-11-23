@@ -22,7 +22,7 @@
   <CB_FilterAll>All</CB_FilterAll>
   <CB_FilterNone>None</CB_FilterNone>
   <CB_FilterCategories>Categories</CB_FilterCategories>
-  <CB_FilterResults>{0} results</CB_FilterResults>
+  <CB_FilterResults>Results ({0})</CB_FilterResults>
   <CB_FilterAllowAll>Allow all</CB_FilterAllowAll>
   <CB_FilterDisallowAll>Disallow all</CB_FilterDisallowAll>
   <CB_FilterAllowed>Allowed ({0})</CB_FilterAllowed>
