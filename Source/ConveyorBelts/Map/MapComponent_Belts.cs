@@ -73,8 +73,8 @@ namespace ConveyorBelts
         public static MapComponent_Belts For(Map map) => map?.GetComponent<MapComponent_Belts>();
 
         /// <summary>
-        /// Market value of everything this mod holds off-map on this map: items on belts plus Output/Pusher port
-        /// buffers. Fogged cells are skipped, like vanilla item wealth. Called by Patch_WealthItems.
+        /// Market value of everything this mod holds off-map on this map: items on belts plus Output Port buffers.
+        /// Fogged cells are skipped, like vanilla item wealth. Called by Patch_WealthItems.
         /// </summary>
         public float HeldItemsWealth()
         {
@@ -89,13 +89,8 @@ namespace ConveyorBelts
             var buildings = map.listerBuildings.allBuildingsColonist;
             for (int i = 0; i < buildings.Count; i++)
             {
-                Thing buffer = buildings[i] switch
-                {
-                    Building_OutputPort o => o.Buffer,
-                    Building_PusherPort p => p.Buffer,
-                    _ => null,
-                };
-                if (buffer != null && !buildings[i].Position.Fogged(map)) sum += buffer.MarketValue * buffer.stackCount;
+                if (buildings[i] is Building_OutputPort o && o.Buffer is Thing buffer && !o.Position.Fogged(map))
+                    sum += buffer.MarketValue * buffer.stackCount;
             }
             return sum;
         }
@@ -148,6 +143,22 @@ namespace ConveyorBelts
             item.Count -= count;
             Sim.RestoreItem(cell, item);
             return Store.Take(piece);
+        }
+
+        /// <summary>
+        /// Merges part back into the belt item handle it was split from (same place on the belt). False when that item
+        /// is gone (it was taken whole) or can't stack with part. Never call from inside Sim.Tick.
+        /// </summary>
+        public bool ReturnToBelt(IntVec3 belt, long handle, Thing part)
+        {
+            if (part == null || part.Destroyed || part.stackCount <= 0) return true;
+            var t = Store.Get(handle);
+            var cell = belt.ToCell();
+            if (t == null || !t.CanStackWith(part) || !Sim.TryRemoveItem(cell, handle, out var item)) return false;
+            t.TryAbsorbStack(part, respectStackLimit: false);
+            item.Count = t.stackCount;
+            Sim.RestoreItem(cell, item);
+            return true;
         }
 
         /// <summary>Drops the given belt items' things on/near cell as normal map items.</summary>

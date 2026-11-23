@@ -9,161 +9,152 @@ namespace ConveyorBelts
     /// <summary>The pusher's two settings, copied and pasted together.</summary>
     public struct PusherSettings
     {
-        public PusherRejectMode RejectMode;
-        public EjectSides EjectSides;
+        /// <summary>A copy, never the live filter of a pusher.</summary>
+        public ThingFilter Filter;
+        public bool PullForbidden;
     }
 
     /// <summary>
-    /// Belt sink that feeds the machine it faces. Takes the stack a belt delivers into a one-item buffer; in its own
-    /// Tick it asks the machine's adapter how many it takes now and pushes that many. What the machine won't take is
-    /// held or thrown to a side cell (onto a belt pointing away, else onto the ground), as its reject mode says.
+    /// Moves items from the cell behind it to the cell in front, holding nothing itself. Every MoveInterval ticks while
+    /// powered it looks for an item behind that its filter allows and that the front can take right now, and moves as
+    /// many as the front takes (at most one stack) in one step. Pull and push sides: see PullSources / PushTargets.
     /// </summary>
-    public class Building_PusherPort : Building, IBeltSink, IPortTabOwner
+    public class Building_PusherPort : Building, IPortTabOwner
     {
-        const int StalledInterval = 15;   // ticks between retries while nothing could be pushed or ejected
+        public const int MoveInterval = 60;
 
-        PusherRejectMode rejectMode = PusherRejectMode.EjectIfNeverAccepted;
-        EjectSides ejectSides = EjectSides.LeftThenRight;
-        Thing buffer;
-        bool stalled;   // the last attempt moved nothing: retry only every StalledInterval ticks
+        /// <summary>Test-only (debug action): log every move. Never saved.</summary>
+        internal static bool LogMoves;
+
+        ThingFilter filter = new ThingFilter();   // starts empty: a new pusher does nothing until configured
+        bool pullForbidden = true;
+        Thing legacyBuffer;                       // v1 saves only: the held stack, dropped on the cell once loaded
         CompPowerTrader power;
         List<PortTabSection> sections;
 
         public bool Powered => power == null || power.PowerOn;
-        public PusherRejectMode RejectMode => rejectMode;
-        public EjectSides EjectSides => ejectSides;
-        public Thing Buffer => buffer;
-        public IntVec3 FrontCell => Position + Rotation.FacingCell;
+        public ThingFilter Filter => filter;
+        public bool PullForbidden { get => pullForbidden; set => pullForbidden = value; }
+        public Dir Facing => Rotation.ToDir();
+        public IntVec3 BehindCell => PullSources.CellBehind(Position, Facing);
+        public IntVec3 FrontCell => PushTargets.CellInFront(Position, Facing);
 
-        public void SetRejectMode(PusherRejectMode m) { rejectMode = m; stalled = false; }
-        public void SetEjectSides(EjectSides s) { ejectSides = s; stalled = false; }
+        /// <summary>What the pusher recognises behind it (whether or not anything can move now), or null.</summary>
+        public string PullingFrom => Spawned ? PullSources.Describe(BehindCell, Map, Facing) : null;
+
+        /// <summary>What the pusher recognises in front of it (whether or not it has room now), or null.</summary>
+        public string PushingTo => Spawned ? PushTargets.Describe(FrontCell, Map, Facing) : null;
 
         public PusherSettings Settings
         {
-            get => new PusherSettings { RejectMode = rejectMode, EjectSides = ejectSides };
-            set { SetRejectMode(value.RejectMode); SetEjectSides(value.EjectSides); }
+            get
+            {
+                var copy = new ThingFilter();
+                copy.CopyAllowancesFrom(filter);
+                return new PusherSettings { Filter = copy, PullForbidden = pullForbidden };
+            }
+            set
+            {
+                if (value.Filter != null) filter.CopyAllowancesFrom(value.Filter);
+                pullForbidden = value.PullForbidden;
+            }
         }
 
-        /// <summary>The machine in front that an adapter can feed, or null.</summary>
-        public Thing Target => Spawned ? PushAdapters.FindTarget(FrontCell, Map) : null;
+        /// <summary>The Port tab's item filter; its operations are what the tab's widgets call.</summary>
+        public Section_ItemFilter FilterSection
+        {
+            get { EnsureSections(); return (Section_ItemFilter)sections[1]; }
+        }
+
+        void EnsureSections()
+        {
+            sections ??= new List<PortTabSection>
+            {
+                new Section_PusherLinks(this),
+                new Section_ItemFilter(() => filter, null),   // no fixed filter: every haulable def, corpses included
+            };
+        }
 
         public IEnumerable<PortTabSection> TabSections
         {
-            get { return sections ??= new List<PortTabSection> { new Section_PusherModes(this) }; }
+            get { EnsureSections(); return sections; }
         }
 
         public override void SpawnSetup(Map map, bool respawningAfterLoad)
         {
             base.SpawnSetup(map, respawningAfterLoad);
             power = GetComp<CompPowerTrader>();
-            MapComponent_Belts.For(map)?.Sim.AddSink(Position.ToCell(), this);
-        }
-
-        public override void DeSpawn(DestroyMode mode = DestroyMode.Vanish)
-        {
-            var map = Map;
-            var cell = Position;
-            MapComponent_Belts.For(map)?.Sim.RemoveSink(cell.ToCell());
-            base.DeSpawn(mode);
-            // Never lose the held stack: it lies where the pusher stood.
-            var t = buffer;
-            buffer = null;
-            PortGizmos.DropBuffer(t, cell, map);
-        }
-
-        /// <summary>Called from inside Sim.Tick: only moves the thing from the store to the buffer; never touches the sim.</summary>
-        public bool TryAccept(long handle, int count, Dir fromSide)
-        {
-            if (!Spawned || !Powered || buffer != null || fromSide == Rotation.ToDir()) return false;
-            var comp = MapComponent_Belts.For(Map);
-            if (comp == null) return false;
-            var t = comp.Store.Take(handle);
-            if (t == null) return false;
-            buffer = t;
-            stalled = false;
-            return true;
+            if (respawningAfterLoad && legacyBuffer != null)
+            {
+                // A v1 pusher's held stack. Dropped once loading has finished: buildings spawn after items and in no
+                // particular order, so the cells around may not show their walls and machines yet.
+                var t = legacyBuffer;
+                legacyBuffer = null;
+                var cell = Position;
+                LongEventHandler.ExecuteWhenFinished(() =>
+                {
+                    PortGizmos.DropBuffer(t, cell, map);
+                    Log.Message($"[CB] v1 pusher at {cell}: dropped its held {t.LabelCap}");
+                });
+            }
         }
 
         protected override void Tick()
         {
             base.Tick();
-            if (buffer == null || !Powered) return;
-            if (stalled && !this.IsHashIntervalTick(StalledInterval)) return;
-            stalled = !TryHandleBuffer();
+            if (Powered && this.IsHashIntervalTick(MoveInterval)) TryMoveOnce();
         }
 
-        /// <summary>One push/eject attempt for the buffer. Returns true if anything moved.</summary>
-        public bool TryHandleBuffer()
+        /// <summary>
+        /// One move attempt: the first pull candidate behind (in PullSources order) that the filter allows and the front
+        /// can take moves, min(available, stack limit, room) of it; a whole-batch product only when the front takes all
+        /// of it. Returns true if something moved. Never holds anything: what the target refuses goes back to the source.
+        /// </summary>
+        public bool TryMoveOnce()
         {
-            if (buffer == null || !Spawned) return false;
-            if (buffer.Destroyed || buffer.stackCount <= 0) { buffer = null; return true; }
-            var target = Target;
-            var adapter = PushAdapters.For(target);
-            int acceptNow = adapter == null ? 0 : Mathf.Min(buffer.stackCount, adapter.CanAccept(target, buffer));
-            bool ever = adapter != null && adapter.EverAccepts(target, buffer.def);
-            switch (PusherLogic.Decide(rejectMode, acceptNow, ever))
-            {
-                case PusherAction.Push: return Push(adapter, target, acceptNow);
-                case PusherAction.Eject: return Eject();
-                default: return false;
-            }
-        }
-
-        bool Push(IPushAdapter adapter, Thing target, int n)
-        {
-            int before = buffer.stackCount;
-            var piece = n >= buffer.stackCount ? buffer : buffer.SplitOff(n);
-            if (piece == buffer) buffer = null;
-            adapter.Accept(target, piece);
-            // Whatever the machine did not take comes back to the buffer: nothing lost, nothing duplicated.
-            if (!piece.Destroyed && !piece.Spawned && piece.holdingOwner == null && piece.stackCount > 0)
-            {
-                if (buffer == null) buffer = piece;
-                else if (!buffer.TryAbsorbStack(piece, respectStackLimit: false))
-                    PortGizmos.DropBuffer(piece, Position, Map);   // can't happen (same def), but never lose it
-            }
-            int after = buffer?.stackCount ?? 0;
-            return after < before;
-        }
-
-        /// <summary>Throws the buffer to the side cells in eject order. Returns true if anything moved.</summary>
-        bool Eject()
-        {
-            var (first, second) = PusherLogic.EjectOrder(Rotation.ToDir(), ejectSides);
-            return EjectTo(first) || EjectTo(second);
-        }
-
-        bool EjectTo(Dir side)
-        {
+            if (!Spawned || filter.AllowedDefCount == 0) return false;
             var map = Map;
-            var (dx, dz) = side.Offset();
-            var cell = new IntVec3(Position.x + dx, 0, Position.z + dz);
-            if (!cell.InBounds(map)) return false;
-            var comp = MapComponent_Belts.For(map);
-            if (comp != null && comp.Sim.TryGetBelt(cell.ToCell(), out var beltDir, out _))
+            var facing = Facing;
+            var front = FrontCell;
+            // The candidate list is good for one take only: use each candidate right away, stop after a take.
+            foreach (var c in PullSources.At(BehindCell, map, facing, pullForbidden))
             {
-                // A belt cell only takes the item onto the belt, and only if the belt points away from the pusher
-                // (an overflow line). Never drop items on the floor under a belt: a full or wrong-way belt is blocked.
-                if (beltDir != side) return false;
-                var fromSide = side.Opposite();   // from the belt toward the pusher
-                int n = Mathf.Min(buffer.stackCount, comp.Sim.MaxStackAt(cell.ToCell()));
-                if (n <= 0 || !comp.Sim.CanInsert(cell.ToCell(), fromSide)) return false;
-                var piece = n >= buffer.stackCount ? buffer : buffer.SplitOff(n);
-                if (comp.TryPutOnBelt(cell, fromSide.ToRot4(), piece))
+                if (c.Thing == null || c.Available <= 0 || !filter.Allows(c.Thing)) continue;
+                int room = PushTargets.Room(front, map, facing, c.Thing, out var target);
+                if (room <= 0) continue;
+                int limit = c.Thing.def.stackLimit;
+                int amount;
+                if (c.WholeBatch)
                 {
-                    if (piece == buffer) buffer = null;
-                    return true;
+                    if (room < c.Available || c.Available > limit) continue;   // no holding: all or nothing
+                    amount = c.Available;
                 }
-                if (piece != buffer && !buffer.TryAbsorbStack(piece, respectStackLimit: false))
-                    PortGizmos.DropBuffer(piece, Position, map);
-                return false;
+                else amount = Mathf.Min(c.Available, Mathf.Min(limit, room));
+                if (amount <= 0) continue;
+
+                var part = c.Take(amount);
+                if (part == null) return false;   // the source changed under us; try again next interval
+                int taken = part.stackCount;
+                PushTargets.Give(target, part);
+                int left = Leftover(part);
+                if (LogMoves)
+                    Log.Message($"[CB] pusher {thingIDNumber} moved {c.Thing.def.defName} x{taken - left} of {c.Available} from {c.SourceLabel} " +
+                                $"-> {PushTargets.Describe(front, map, facing)} (room {room}{(left > 0 ? $", {left} refused, put back" : "")})");
+                if (left > 0) PutBack(c, part);
+                return left < taken;
             }
-            // Ground: only an open cell (no wall, door, machine or other edifice underneath).
-            if (!cell.Walkable(map) || cell.GetEdifice(map) != null) return false;
-            int before = buffer.stackCount;
-            GenPlace.TryPlaceThing(buffer, cell, map, ThingPlaceMode.Direct);
-            if (buffer.Destroyed || buffer.Spawned || buffer.stackCount <= 0) { buffer = null; return true; }
-            return buffer.stackCount < before;
+            return false;
+        }
+
+        /// <summary>How many of part the target did not take (part not destroyed, spawned or held).</summary>
+        static int Leftover(Thing part)
+            => part.Destroyed || part.Spawned || part.holdingOwner != null || part.stackCount <= 0 ? 0 : part.stackCount;
+
+        /// <summary>Returns what the target refused to its source; if the source can't take it back, drops it here.</summary>
+        void PutBack(PullCandidate c, Thing part)
+        {
+            if (c.PutBack != null && c.PutBack(part) && Leftover(part) == 0) return;
+            if (Leftover(part) > 0) PortGizmos.DropBuffer(part, Position, Map);
         }
 
         public override IEnumerable<Gizmo> GetGizmos()
@@ -177,23 +168,11 @@ namespace ConveyorBelts
         public override void ExposeData()
         {
             base.ExposeData();
-            Scribe_Values.Look(ref rejectMode, "rejectMode", PusherRejectMode.EjectIfNeverAccepted);
-            Scribe_Values.Look(ref ejectSides, "ejectSides", EjectSides.LeftThenRight);
-            Scribe_Deep.Look(ref buffer, "buffer");
-        }
-
-        public override string GetInspectString()
-        {
-            var s = base.GetInspectString();
-            void Add(string line) { if (s.Length > 0) s += "\n"; s += line; }
-            if (power != null && !power.PowerOn) Add("CB_PusherNoPower".Translate());
-            if (Spawned)
-            {
-                var target = Target;
-                Add(target == null ? "CB_PusherFacingNothing".Translate().ToString() : "CB_PusherFacing".Translate(target.LabelCap).ToString());
-            }
-            if (buffer != null) Add("CB_OutputHolding".Translate(buffer.LabelCap));
-            return s;
+            Scribe_Deep.Look(ref filter, "filter");
+            Scribe_Values.Look(ref pullForbidden, "pullForbidden", true);
+            // v1 saves: the one-item buffer (read only; v1 rejectMode / ejectSides are ignored).
+            if (Scribe.mode != LoadSaveMode.Saving) Scribe_Deep.Look(ref legacyBuffer, "buffer");
+            if (Scribe.mode == LoadSaveMode.PostLoadInit && filter == null) filter = new ThingFilter();
         }
     }
 }

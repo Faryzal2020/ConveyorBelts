@@ -30,6 +30,13 @@ namespace ConveyorBelts
         /// Call outside Sim.Tick, and only once per candidate list (the list is stale after a take).
         /// </summary>
         public Func<int, Thing> Take;
+
+        /// <summary>
+        /// Puts a taken part (or what a target refused of it) back into the source: merged into the belt item it came
+        /// from, placed back on the cell, or added back to the container. Returns false when the source can't take it
+        /// (products, a belt item that was taken whole); the caller then drops it nearby. Null = no way back.
+        /// </summary>
+        public Func<Thing, bool> PutBack;
     }
 
     /// <summary>
@@ -70,6 +77,7 @@ namespace ConveyorBelts
                     {
                         Thing = t, Available = end.Count, SourceLabel = BeltLabel,
                         Take = n => n <= 0 ? null : comp.TakeFromBelt(cell, handle, n),
+                        PutBack = part => comp.ReturnToBelt(cell, handle, part),
                     });
                 }
             }
@@ -82,7 +90,11 @@ namespace ConveyorBelts
                 var t = list[i];
                 if (!t.Spawned || !t.def.EverHaulable || Skip(t, map, includeForbidden)) continue;
                 var label = SpotLabel(cell, map) ?? t.LabelCapNoCount;
-                result.Add(new PullCandidate { Thing = t, Available = t.stackCount, SourceLabel = label, Take = n => TakeSpawned(t, n) });
+                result.Add(new PullCandidate
+                {
+                    Thing = t, Available = t.stackCount, SourceLabel = label, Take = n => TakeSpawned(t, n),
+                    PutBack = part => PutBackOnCell(part, cell, map),
+                });
             }
 
             // 3. Building containers (IThingHolder building or comp): graves, caskets, transport pods, machines.
@@ -102,6 +114,7 @@ namespace ConveyorBelts
                         {
                             Thing = t, Available = t.stackCount, SourceLabel = b.LabelCap,
                             Take = n => TakeHeld(b, owner, t, n),
+                            PutBack = part => !b.Destroyed && owner.TryAdd(part, canMergeWithExistingStacks: true),
                         });
                     }
                 }
@@ -151,6 +164,14 @@ namespace ConveyorBelts
             if (n <= 0 || t.Destroyed || !t.Spawned) return null;
             if (n >= t.stackCount) { t.DeSpawn(); return t; }
             return t.SplitOff(n);   // unspawned, unowned; keeps the forbidden state (CompForbiddable.PostSplitOff)
+        }
+
+        /// <summary>Places part back on cell (merging with the stack it came from); true if all of it is back.</summary>
+        static bool PutBackOnCell(Thing part, IntVec3 cell, Map map)
+        {
+            if (part.Destroyed || part.Spawned || part.stackCount <= 0) return true;
+            GenPlace.TryPlaceThing(part, cell, map, ThingPlaceMode.Direct);
+            return part.Destroyed || part.Spawned || part.stackCount <= 0;
         }
 
         static Thing TakeHeld(Building b, ThingOwner owner, Thing t, int n)

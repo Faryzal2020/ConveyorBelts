@@ -21,6 +21,8 @@ namespace ConveyorBelts
             owner.GetStoreSettings().Priority = p;
         }
 
+        public override float Height(float width) => 30f;
+
         public override float Draw(Rect rect)
         {
             float x = rect.x, y = rect.y;

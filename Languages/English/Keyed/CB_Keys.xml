@@ -43,27 +43,14 @@
   <CB_OutputNoPower>Not accepting items: no power.</CB_OutputNoPower>
   <CB_OutputHolding>Holding: {0}</CB_OutputHolding>
   <CB_ConfigurePusher>Pusher settings</CB_ConfigurePusher>
-  <CB_ConfigurePusherDesc>Open the Port tab to see the machine this pusher feeds and choose what happens to items it won't take.</CB_ConfigurePusherDesc>
-  <CB_CopyPusherDesc>Copy this pusher's reject mode and eject side.</CB_CopyPusherDesc>
-  <CB_PastePusherDesc>Apply the copied reject mode and eject side to this pusher.</CB_PastePusherDesc>
-  <CB_PusherNoPower>Not accepting items: no power.</CB_PusherNoPower>
-  <CB_PusherFacing>Facing: {0}</CB_PusherFacing>
-  <CB_PusherFacingNothing>Facing: nothing it can feed</CB_PusherFacingNothing>
-  <CB_PusherAcceptsNow>Accepts now: {0}</CB_PusherAcceptsNow>
-  <CB_PusherUpTo>{0} (up to {1})</CB_PusherUpTo>
-  <CB_PusherStorage>{0} ({1} free stack slots)</CB_PusherStorage>
-  <CB_PusherNothing>nothing</CB_PusherNothing>
+  <CB_ConfigurePusherDesc>Open the Port tab to choose which items this pusher moves.</CB_ConfigurePusherDesc>
+  <CB_CopyPusherDesc>Copy this pusher's item filter and forbidden setting.</CB_CopyPusherDesc>
+  <CB_PastePusherDesc>Apply the copied item filter and forbidden setting to this pusher.</CB_PastePusherDesc>
   <CB_PusherBelt>Belt</CB_PusherBelt>
-  <CB_PusherWhenRejected>When the machine won't take it:</CB_PusherWhenRejected>
-  <CB_PusherEjectNever>Eject only if never accepted</CB_PusherEjectNever>
-  <CB_PusherEjectNeverDesc>Throw items the machine never takes to the side. Wait while it is just full.</CB_PusherEjectNeverDesc>
-  <CB_PusherEjectNow>Eject whenever not accepted</CB_PusherEjectNow>
-  <CB_PusherEjectNowDesc>Throw any item the machine won't take right now to the side.</CB_PusherEjectNowDesc>
-  <CB_PusherAlwaysWait>Always wait</CB_PusherAlwaysWait>
-  <CB_PusherAlwaysWaitDesc>Hold the item until the machine takes it; the belt backs up.</CB_PusherAlwaysWaitDesc>
-  <CB_PusherEjectSide>Eject side:</CB_PusherEjectSide>
-  <CB_EjectLeftThenRight>Left, then right</CB_EjectLeftThenRight>
-  <CB_EjectRightThenLeft>Right, then left</CB_EjectRightThenLeft>
+  <CB_PusherPullingFrom>Pulling from: {0}</CB_PusherPullingFrom>
+  <CB_PusherPushingTo>Pushing to: {0}</CB_PusherPushingTo>
+  <CB_PullForbidden>Pull from forbidden</CB_PullForbidden>
+  <CB_None>None</CB_None>
   <CB_SelectLine>Select line</CB_SelectLine>
   <CB_SelectLineDesc>Select every belt in this belt's line: the straight run in one direction that one motor drives.</CB_SelectLineDesc>
   <CB_UpgradeTo>Upgrade to {0}</CB_UpgradeTo>

@@ -85,7 +85,7 @@
   <ThingDef ParentName="CB_MachineBase">
     <defName>CB_PusherPort</defName>
     <label>pusher port</label>
-    <description>Takes the stacks a belt delivers into it and pushes them into the machine it faces: storage such as hoppers and shelves, anything that takes fuel, fermenting barrels (wort) and construction frames (missing materials). Items the machine won't take are held or thrown to a side cell (onto a belt pointing away, else onto the ground), as set in its Port tab. Draws 50 W.</description>
+    <description>Moves items from the cell behind it to the cell in front, one stack at a time and only what the front can take: from a belt, shelves, stockpiles, containers or a fermenting barrel, onto a belt or into storage, graves, anything that takes fuel, fermenting barrels (wort) and construction frames. Holds nothing itself and moves only the items allowed in its Port tab. Draws 50 W.</description>
     <thingClass>ConveyorBelts.Building_PusherPort</thingClass>
     <tickerType>Normal</tickerType>
     <graphicData>

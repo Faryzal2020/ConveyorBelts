@@ -13,6 +13,8 @@ namespace ConveyorBelts
         public OutputFullMode Mode => owner.FullMode;
         public void SetMode(OutputFullMode m) => owner.SetFullMode(m);
 
+        public override float Height(float width) => 3f * 28f;
+
         public override float Draw(Rect rect)
         {
             float x = rect.x, w = rect.width, y = rect.y;

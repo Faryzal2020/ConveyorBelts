@@ -26,7 +26,10 @@ namespace ConveyorBelts
             };
         }
 
-        /// <summary>One clipboard per settings type, so a port only pastes settings copied from its own kind.</summary>
+        /// <summary>
+        /// One clipboard per settings type, so a port only pastes settings copied from its own kind. A settings struct
+        /// that holds a reference (the pusher's ThingFilter) must hold a copy, so later edits don't change the clipboard.
+        /// </summary>
         static class Clipboard<T> where T : struct { public static T? Value; }
 
         /// <summary>Copy gizmo, plus a paste gizmo once something of type T was copied.</summary>

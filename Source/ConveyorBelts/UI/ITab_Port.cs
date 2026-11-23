@@ -4,20 +4,51 @@ using Verse;
 
 namespace ConveyorBelts
 {
-    /// <summary>The single inspect tab of every port: a header plus the selected owner's sections in a scroll view.</summary>
+    /// <summary>
+    /// The single inspect tab of every port: a header plus the selected owner's sections. The window is as tall as its
+    /// content (each section declares its height), so there is no outer scrollbar to fight the filter panes for the
+    /// mouse wheel; only on a screen too short for it does the content scroll.
+    /// </summary>
     public class ITab_Port : ITab
     {
-        static readonly Vector2 WinSize = new Vector2(560f, 560f);
+        const float Width = 560f;
+        const float Margin = 10f;
         const float HeaderHeight = 32f;
         const float SectionGap = 12f;
+        const float ScrollBarW = 16f;
 
         Vector2 scroll;
-        float contentHeight = 100f;
 
         public ITab_Port()
         {
-            size = WinSize;
+            size = new Vector2(Width, 560f);
             labelKey = "CB_TabPort";
+        }
+
+        /// <summary>Sum of the owner's section heights plus the gaps between them, at the given content width.</summary>
+        static float ContentHeight(IPortTabOwner owner, float width)
+        {
+            float h = 0f;
+            bool first = true;
+            foreach (var section in owner.TabSections)
+            {
+                if (!first) h += SectionGap;
+                first = false;
+                h += section.Height(width);
+            }
+            return h;
+        }
+
+        float ContentWidth => Width - 2f * Margin;
+
+        protected override void UpdateSize()
+        {
+            base.UpdateSize();
+            var owner = Owner;
+            if (owner == null) return;
+            float want = ContentHeight(owner, ContentWidth) + HeaderHeight + 2f * Margin;
+            float max = Mathf.Max(200f, PaneTopY - 30f - 10f);   // keep the window on screen
+            size = new Vector2(Width, Mathf.Min(want, max));
         }
 
         IPortTabOwner Owner => SelThing as IPortTabOwner;
@@ -41,29 +72,35 @@ namespace ConveyorBelts
         {
             var owner = Owner;
             if (owner == null) return;
-            var outer = new Rect(0f, 0f, WinSize.x, WinSize.y).ContractedBy(10f);
+            var outer = new Rect(0f, 0f, size.x, size.y).ContractedBy(Margin);
 
             Text.Font = GameFont.Medium;
             Widgets.Label(new Rect(outer.x, outer.y, outer.width - 30f, HeaderHeight), SelThing.LabelCap);
             Text.Font = GameFont.Small;
 
-            var scrollOut = new Rect(outer.x, outer.y + HeaderHeight, outer.width, outer.height - HeaderHeight);
-            var view = new Rect(0f, 0f, scrollOut.width - 16f, Mathf.Max(contentHeight, scrollOut.height - 1f));
-            Widgets.BeginScrollView(scrollOut, ref scroll, view);
+            var area = new Rect(outer.x, outer.y + HeaderHeight, outer.width, outer.height - HeaderHeight);
+            float content = ContentHeight(owner, area.width);
+            bool scrolls = content > area.height + 1f;   // only on a screen too short for the window
+            float w = scrolls ? area.width - ScrollBarW : area.width;
+            if (scrolls)
+            {
+                Widgets.BeginScrollView(area, ref scroll, new Rect(0f, 0f, w, ContentHeight(owner, w)));
+            }
+            else Widgets.BeginGroup(area);
             float y = 0f;
             bool first = true;
             foreach (var section in owner.TabSections)
             {
                 if (!first)
                 {
-                    Widgets.DrawLineHorizontal(0f, y + SectionGap / 2f, view.width);
+                    Widgets.DrawLineHorizontal(0f, y + SectionGap / 2f, w);
                     y += SectionGap;
                 }
                 first = false;
-                y += section.Draw(new Rect(0f, y, view.width, 100000f));
+                y += section.Draw(new Rect(0f, y, w, 100000f));
             }
-            Widgets.EndScrollView();
-            contentHeight = y;
+            if (scrolls) Widgets.EndScrollView();
+            else Widgets.EndGroup();
             Text.Anchor = TextAnchor.UpperLeft;
             Text.Font = GameFont.Small;
             GUI.color = Color.white;

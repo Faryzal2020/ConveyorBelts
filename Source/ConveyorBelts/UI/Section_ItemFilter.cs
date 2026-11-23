@@ -444,6 +444,9 @@ namespace ConveyorBelts
 
         // ---- drawing ----
 
+        /// <summary>Header row (32) + search box (34) + the two panes.</summary>
+        public override float Height(float width) => 32f + 34f + PaneHeaderH + PaneH;
+
         public override float Draw(Rect rect)
         {
             inDraw = true;

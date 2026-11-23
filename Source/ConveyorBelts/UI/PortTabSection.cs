@@ -7,5 +7,8 @@ namespace ConveyorBelts
     {
         /// <summary>Draws the section starting at rect.y (rect.height is only an upper bound). Returns the height used.</summary>
         public abstract float Draw(Rect rect);
+
+        /// <summary>The height Draw will use at this width; the Port tab sizes its window from it (no outer scrolling).</summary>
+        public abstract float Height(float width);
     }
 }
