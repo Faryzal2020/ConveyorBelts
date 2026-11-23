@@ -562,35 +562,6 @@ namespace ConveyorBelts
             }
         }
 
-        /// <summary>
-        /// For every pusher whose first candidate sits inside a container (held, not spawned, not a product): Take(15)
-        /// and log Available before, the part taken, and what is left inside. The part is dropped beside the pusher.
-        /// </summary>
-        [DebugAction(Cat, "Test: take 15 from container candidates", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void TakeFromContainers()
-        {
-            var map = Find.CurrentMap;
-            foreach (var p in Pushers(map))
-            {
-                var facing = p.Rotation.ToDir();
-                var behind = PullSources.CellBehind(p.Position, facing);
-                var c = PullSources.At(behind, map, facing, includeForbidden: true).FirstOrDefault(x => !x.WholeBatch && !x.Thing.Spawned && x.Thing.holdingOwner != null
-                                                                                                        && x.Thing.holdingOwner.Owner is not BeltItemStore);
-                if (c == null) continue;
-                var owner = c.Thing.holdingOwner;
-                var def = c.Thing.def;
-                int before = c.Available, inOwner = owner.TotalStackCountOfDef(def), total = TotalOf(map, def);
-                var part = c.Take(15);
-                int leftInside = owner.TotalStackCountOfDef(def);
-                int again = PullSources.At(behind, map, facing, includeForbidden: true).Where(x => x.Thing.def == def).Sum(x => x.Available);
-                Log.Message($"[CB] take ({p.Position.x},{p.Position.z}) from {c.SourceLabel}: {def.defName} available {before} (inside {inOwner}); " +
-                            $"Take(15) -> {part?.def.defName} x{part?.stackCount} spawned={part?.Spawned} owner={(part?.holdingOwner == null ? "none" : "SET")}; " +
-                            $"inside now {leftInside}; candidates now {again}");
-                if (part != null) GenPlace.TryPlaceThing(part, p.Position + IntVec3.North, map, ThingPlaceMode.Near);
-                Log.Message($"[CB] take ({p.Position.x},{p.Position.z}): total {def.defName} {total} -> {TotalOf(map, def)} (part dropped on the map)");
-            }
-        }
-
         // Test-only: the rows built by "Test: build pusher scenarios", by pusher, for the report (never saved).
         static readonly List<(string Label, Building_PusherPort Pusher, ThingDef Def)> scenarioRows = new List<(string, Building_PusherPort, ThingDef)>();
 
@@ -607,7 +578,8 @@ namespace ConveyorBelts
         /// (forbidden) / grave, D fermented barrel (25 beer) / basic belt (max stack 10), E fermented barrel / shelf,
         /// F cryptosleep casket with a colonist / shelf, G shelf + forbidden Steel x30 / shelf, H shelf + Steel x40 /
         /// plain ground, I shelf + Steel x40 / shelf (for the unpowered check), J shelf with Steel x75 and WoodLog x50 on
-        /// the pusher's cell / shelf (for the reserved check). Colonists are drafted so they leave the rows alone.
+        /// the pusher's cell / shelf (for the reserved check), K 2-cell shelf lying along the row with Steel x40 only on its far
+        /// cell / basic belt (3 tiles; whole-shelf pull). Colonists are drafted so they leave the rows alone.
         /// </summary>
         [DebugAction(Cat, "Test: build pusher scenarios", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void BuildPusherScenarios()
@@ -654,7 +626,7 @@ namespace ConveyorBelts
             }
 
             var labels = new[] { "A shelf>belt", "B belt>shelf", "C corpse>grave", "D barrel>belt", "E barrel>shelf", "F casket>shelf",
-                                 "G forbidden>shelf", "H shelf>ground", "I shelf>shelf (power)", "J reserved>shelf" };
+                                 "G forbidden>shelf", "H shelf>ground", "I shelf>shelf (power)", "J reserved>shelf", "K far shelf cell>belt" };
             for (int row = 0; row < labels.Length; row++)
             {
                 var pos = new IntVec3(o.x + 5 + row / 7 * 12, 0, o.z + 2 + row % 7 * 4);
@@ -736,6 +708,23 @@ namespace ConveyorBelts
                         GenSpawn.Spawn(Item(ThingDefOf.WoodLog, 50), behind, map);
                         Spawn("Shelf", front, false);
                         break;
+                    case 10:
+                    {
+                        // The shelf covers behind and the cell west of it; the steel sits on the far (west) cell only.
+                        var shelfDef = DefDatabase<ThingDef>.GetNamed("Shelf");
+                        var shelf = ThingMaker.MakeThing(shelfDef, GenStuff.DefaultStuffFor(shelfDef));
+                        shelf.SetFactionDirect(Faction.OfPlayer);
+                        var rot = new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West }.First(rt =>
+                        {
+                            var r = GenAdj.OccupiedRect(behind, rt, shelfDef.size);
+                            return r.maxX == behind.x && r.minX == behind.x - 1 && r.minZ == behind.z && r.maxZ == behind.z;
+                        });
+                        GenSpawn.Spawn(shelf, behind, map, rot);
+                        GenSpawn.Spawn(Item(ThingDefOf.Steel, 40), behind + IntVec3.West, map);
+                        for (int i = 0; i < 3; i++) BeltGizmos.SpawnBelt(basic, front + new IntVec3(i, 0, 0), Rot4.East, map, null);
+                        Motor(front + IntVec3.South, Rot4.North);
+                        break;
+                    }
                 }
                 scenarioRows.Add((labels[row], pusher, def));
             }

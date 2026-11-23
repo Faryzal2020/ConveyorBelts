@@ -1,17 +1,17 @@
 # Conveyor Belts: developer and testing notes
 
-A mod for Rimworld 1.7. Adds Conveyor Belts and other supporting facilities to make a fully functional automation system as minimum.
+A mod for RimWorld 1.7. Adds Conveyor Belts and other supporting facilities to make a fully functional automation system as minimum.
 
 Requires Harmony. Core only. Architect tab: **conveyors**.
 
 ## What it does
 
-- **Belts:** two clicks lay an L-shaped path (across first, then up/down). After the first click, **Q** or **E** flips it to up/down first. With no click pending, Q/E rotate the single tile. Right-click cancels a pending start. Belts are surface-only: nothing else is built on a belt cell except a floor, a wall-mounted item, a different belt tier, or a **power conduit** (conduits may share belt and port cells, in either build order).
+- **Belts:** two clicks lay an L-shaped path (across first, then up/down). After the first click, **Q**, **E** or a middle-click flips it to up/down first. With no click pending, they rotate the single tile. Right-click cancels a pending start. Belts are surface-only: nothing else is built on a belt cell except a floor, a wall-mounted item, a different belt tier, or a **power conduit** (conduits may share belt and port cells, in either build order).
 - **Belt motor:** put it next to a line (beside, behind the first tile or past the last). It faces the belt and drives the whole line while powered. A second motor on the same line sits on "Standby" and takes over if the first loses power or is removed. No power, no motor: the line stops and items stay put.
 - **Input port:** takes the items its filter allows (haul priority in the tab) and puts them on adjacent belts.
 - **Output port:** puts what a belt delivers on the cell it faces. **Hold** keeps the stack until the cell is free; **Spill** drops it nearby.
 - **Pusher port:** moves items from the cell behind it to the cell in front, one move per second while powered. It holds nothing, and does nothing until its filter allows something.
-  - Pulls from: a belt pointing into it (end item), items lying on the cell (shelves, stockpiles, floor), a building's or component's container (transport pods, caskets without the person, graves), or a fermenting barrel's finished beer.
+  - Pulls from: a belt pointing into it (end item), items lying on the cell (a shelf or other storage building with all its cells, e.g. both cells of a 2-cell shelf; a stockpile zone or plain floor only that cell), a building's or component's container (transport pods, caskets without the person, graves), or a fermenting barrel's finished beer.
   - Pushes to: a belt, fuel users, a fermenting barrel (wort), construction frames, storage and shelves, graves.
   - Never pulls a live pawn, never takes materials back out of a construction frame, never puts items on bare ground, skips items a pawn has reserved.
   - **Pull from forbidden** is on by default. Moved items keep their forbidden state.
@@ -52,7 +52,7 @@ Headless, quicktest map, 8 basic belts + motors, `log level=error` empty.
 | Tier upgrade keeps items | 8 belts to fast in god mode mid-flow: 8 fast, 0 basic, same items on the same cells |
 | Save/load mid-flow | `restored 9/9 belt items, deferred 0`, same cells, items keep moving, no errors |
 | Wealth | belt items and output buffers counted: item wealth 9682.9 before, 9898.5 with 108.0 on belts and in buffers, and 9898.5 again after load |
-| Pusher scenarios (empty filter, stacks over the room, barrel batch, reserved items, forbidden toggle, graves, frames) | see `.superpowers/sdd/2026-11-23-v1.1/task-4-report.md` |
+| Pusher scenarios (empty filter, stacks over the room, barrel batch, reserved items, forbidden toggle, graves, frames) | details in the local SDD reports (not in the repo) |
 | Perf (v1, 2,000 tiles / 4,000 moving items) | Sim.Tick 0.24 ms avg (20 x 100) and 0.43 ms avg (286 x 7); draw 1.6-1.7 ms/frame; target 2 ms |
 
 ## Known limits
@@ -61,6 +61,8 @@ Headless, quicktest map, 8 basic belts + motors, `log level=error` empty.
 - Items held in an Output Port buffer don't rot.
 - Barrel beer moves only as a whole batch: a basic belt (max stack 10) can't take a full barrel; use a fast or express belt, or a storage target.
 - The Pusher can pull from any building's or component's container, so test unusual modded buildings.
+- The Pusher pulls only from the cell behind it (a storage building there counts with all its cells); a belt entering from the side stops at its end (v1 side-fed layouts stop).
+- Fermenting barrels with modded capacity above Beer's stack limit (25) never empty by pusher.
 - A part that merges into an existing stack takes that stack's forbidden state (vanilla behaviour).
 - A downgrade keeps stacks larger than the new tier's limit on that cell.
 - Pawns may haul an Output Port's drops back into an Input Port whose filter allows them; set filters to avoid loops.
@@ -73,7 +75,8 @@ Headless, quicktest map, 8 basic belts + motors, `log level=error` empty.
 
 ## Manual checks still needed in a real window
 
-- Q/E: flip the L after the first click; rotate a single tile before it.
+- Q/E and middle-click: flip the L after the first click; rotate a single tile before it. The on-screen rotate buttons still rotate while a start is pending (they only change a same-cell tile's direction, not the L).
+- A conduit built over a built belt (and a belt over a conduit) joins the power net.
 - Filter tab: tree clicks, expand arrows, search, "Allow all", the X on the allowed list, All/None, scrolling.
 - Pusher tab: the "Pull from forbidden" checkbox.
 - Upgrade / Downgrade buttons and their target-belt icons.

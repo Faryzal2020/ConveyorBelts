@@ -9,7 +9,7 @@ namespace ConveyorBelts
 {
     /// <summary>
     /// Two-click L-path belt placement (PLAN.md §5.2). Click 1 stores the start; click 2 places the
-    /// X-first (Q/E flips to Z-first) path from BeltPath.Compute and clears the start. The designator stays
+    /// X-first (Q/E or middle-click flips to Z-first) path from BeltPath.Compute and clears the start. The designator stays
     /// selected. Right-click / Esc with a pending start clears only the start.
     /// </summary>
     public abstract class Designator_BeltPath : Designator_Build
@@ -184,17 +184,46 @@ namespace ConveyorBelts
             base.DrawMouseAttachments();
         }
 
+        /// <summary>Vanilla's middle-click rotate: a press released within this many seconds (Designator_Place.HandleRotationShortcuts).</summary>
+        const float MiddleClickSeconds = 0.15f;
+        float middleDownTime = -1f;
+
+        /// <summary>
+        /// With a pending start, the rotate inputs flip the L instead of rotating: Q/E, and a middle-click (consumed on
+        /// press and release, flips on a short release, as vanilla rotates). Returns true when the event was consumed.
+        /// </summary>
+        bool TryConsumeFlip(Event ev)
+        {
+            if (!pendingStart.HasValue || ev == null) return false;
+            if (ev.button == 2 && (ev.type == EventType.MouseDown || ev.type == EventType.MouseUp))
+            {
+                float now = Time.realtimeSinceStartup;
+                if (ev.type == EventType.MouseDown) middleDownTime = now;
+                else
+                {
+                    if (middleDownTime >= 0f && now - middleDownTime < MiddleClickSeconds) Flip();
+                    middleDownTime = -1f;
+                }
+                ev.Use();
+                return true;
+            }
+            if (!KeyBindingDefOf.Designator_RotateLeft.KeyDownEvent && !KeyBindingDefOf.Designator_RotateRight.KeyDownEvent) return false;
+            Flip();
+            ev.Use();
+            return true;
+        }
+
+        void Flip()
+        {
+            FlipL();
+            SoundDefOf.DragSlider.PlayOneShotOnCamera();
+        }
+
         public override void SelectedProcessInput(Event ev)
         {
             if (TryConsumeCancel(ev)) return;
-            if (pendingStart.HasValue && (KeyBindingDefOf.Designator_RotateLeft.KeyDownEvent || KeyBindingDefOf.Designator_RotateRight.KeyDownEvent))
-            {
-                FlipL();
-                SoundDefOf.DragSlider.PlayOneShotOnCamera();
-                ev.Use();
-                return;
-            }
-            base.SelectedProcessInput(ev);   // Q/E rotation before the first click
+            if (TryConsumeFlip(ev)) return;
+            base.SelectedProcessInput(ev);   // Q/E / middle-click rotation before the first click
         }
 
         public override void SelectedUpdate()

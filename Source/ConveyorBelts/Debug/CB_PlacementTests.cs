@@ -80,7 +80,7 @@ namespace ConveyorBelts
         [DebugAction(Cat, "Test: path A basic X-first O to O+(5,5)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void PathA() => RunPath<Designator_BeltPath_Basic>("path A", At(0, 0), At(5, 5));
 
-        [DebugAction(Cat, "Test: path B basic Z-first (shift) O+(8,0) to O+(13,5)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        [DebugAction(Cat, "Test: path B basic Z-first O+(8,0) to O+(13,5)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void PathB() => RunPath<Designator_BeltPath_Basic>("path B", At(8, 0), At(13, 5), zFirst: true);
 
         [DebugAction(Cat, "Test: path with Q/E flip", allowedGameStates = AllowedGameStates.PlayingOnMap)]
@@ -175,6 +175,46 @@ namespace ConveyorBelts
                 Log.Message($"[CB] right-click without start: consumed={consumed} eventUsed={ev.type == EventType.Used}");
             }
             finally { Find.DesignatorManager.Deselect(); }
+        }
+
+        /// <summary>
+        /// A short middle-click (press + release through SelectedProcessInput, with Event.current set as in OnGUI): with a
+        /// pending start it flips the L and is consumed; without one vanilla rotates placingRot.
+        /// </summary>
+        [DebugAction(Cat, "Test: middle-click with pending start", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void MiddleClickPending()
+        {
+            var des = Des<Designator_BeltPath_Basic>();
+            var prev = Event.current;
+            Find.DesignatorManager.Select(des);
+            try
+            {
+                (bool downUsed, bool upUsed) Click()
+                {
+                    var down = new Event { type = EventType.MouseDown, button = 2 };
+                    Event.current = down;
+                    des.SelectedProcessInput(down);
+                    var up = new Event { type = EventType.MouseUp, button = 2 };
+                    Event.current = up;
+                    des.SelectedProcessInput(up);
+                    return (down.type == EventType.Used, up.type == EventType.Used);
+                }
+                des.DesignateSingleCell(At(18, 6));
+                var rot = des.PlacingRot;
+                bool z0 = des.ZFirst;
+                var (d1, u1) = Click();
+                bool z1 = des.ZFirst;
+                var (d2, u2) = Click();
+                Log.Message($"[CB] middle-click pending: ZFirst {z0} -> {z1} -> {des.ZFirst} rot {rot} -> {des.PlacingRot} used down={d1}/{d2} up={u1}/{u2} pending={(des.pendingStart.HasValue ? "set" : "null")}");
+                des.pendingStart = null;
+                var (d3, u3) = Click();
+                Log.Message($"[CB] middle-click no start: ZFirst={des.ZFirst} rot {rot} -> {des.PlacingRot} used down={d3} up={u3}");
+            }
+            finally
+            {
+                Event.current = prev;
+                Find.DesignatorManager.Deselect();
+            }
         }
 
         [DebugAction(Cat, "Test: deconstruct belt at O+(2,0) via vanilla designator", allowedGameStates = AllowedGameStates.PlayingOnMap)]

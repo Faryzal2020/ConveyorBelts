@@ -74,8 +74,6 @@ def seg(x, y, x0, y0, x1, y1, w):
 ICONS = {
     # a line of three dots joined by a bar
     "SelectLine": lambda x, y: seg(x, y, 10, 32, 54, 32, 3) or any((x - c) ** 2 + (y - 32) ** 2 <= 49 for c in (12, 32, 52)),
-    # up chevron over a bar
-    "UpgradeLine": lambda x, y: seg(x, y, 14, 30, 32, 12, 4) or seg(x, y, 50, 30, 32, 12, 4) or seg(x, y, 32, 14, 32, 52, 4),
     # circular arrow (ring with a gap plus arrowhead)
     "RotateMotor": lambda x, y: (200 <= (x - 32) ** 2 + (y - 32) ** 2 <= 380 and not (x > 32 and y < 30)) or
                                  (x > 32 and y < 30 and in_tri(x, y)),

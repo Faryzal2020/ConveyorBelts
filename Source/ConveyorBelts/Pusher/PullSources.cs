@@ -40,8 +40,8 @@ namespace ConveyorBelts
     }
 
     /// <summary>
-    /// What a pusher can pull from the cell behind it, in the spec order: belt end, items lying on the cell, building
-    /// IThingHolder contents, product adapters. Never live pawns; skips reserved things, and forbidden ones unless asked.
+    /// What a pusher can pull from the cell behind it, in the spec order: belt end, items lying on the cell (all cells of
+    /// a storage building there), building IThingHolder contents, product adapters. Never live pawns; skips reserved things, and forbidden ones unless asked.
     /// </summary>
     public static class PullSources
     {
@@ -84,17 +84,23 @@ namespace ConveyorBelts
 
             var list = map.thingGrid.ThingsListAt(cell);
 
-            // 2. Items lying on the cell (shelves, stockpiles, plain floor).
-            for (int i = 0; i < list.Count; i++)
+            // 2. Items lying on the cell: a storage building with all its cells (a 2-cell shelf is one source), a
+            //    stockpile zone or plain floor only with the cell behind.
+            var spot = SpotLabel(cell, map);
+            foreach (var c in ItemCells(cell, map))
             {
-                var t = list[i];
-                if (!t.Spawned || !t.def.EverHaulable || Skip(t, map, includeForbidden)) continue;
-                var label = SpotLabel(cell, map) ?? t.LabelCapNoCount;
-                result.Add(new PullCandidate
+                var items = map.thingGrid.ThingsListAt(c);
+                for (int i = 0; i < items.Count; i++)
                 {
-                    Thing = t, Available = t.stackCount, SourceLabel = label, Take = n => TakeSpawned(t, n),
-                    PutBack = part => PutBackOnCell(part, cell, map),
-                });
+                    var t = items[i];
+                    if (!t.Spawned || !t.def.EverHaulable || Skip(t, map, includeForbidden)) continue;
+                    var from = c;
+                    result.Add(new PullCandidate
+                    {
+                        Thing = t, Available = t.stackCount, SourceLabel = spot ?? t.LabelCapNoCount, Take = n => TakeSpawned(t, n),
+                        PutBack = part => PutBackOnCell(part, from, map),
+                    });
+                }
             }
 
             // 3. Building containers (IThingHolder building or comp): graves, caskets, transport pods, machines.
@@ -151,6 +157,21 @@ namespace ConveyorBelts
             var comps = b.AllComps;
             for (int i = 0; i < comps.Count; i++)
                 if (comps[i] is IThingHolder h) yield return h;
+        }
+
+        /// <summary>
+        /// The cells whose items count as lying behind the pusher: every cell of the storage building on cell (as the
+        /// push side treats one), else just cell (stockpile zone, plain floor).
+        /// </summary>
+        static IEnumerable<IntVec3> ItemCells(IntVec3 cell, Map map)
+        {
+            var sg = cell.GetSlotGroup(map);
+            if (sg?.parent is Thing)
+            {
+                var cells = sg.CellsList;
+                for (int i = 0; i < cells.Count; i++) yield return cells[i];
+            }
+            else yield return cell;
         }
 
         static bool IsContainer(Building b)
