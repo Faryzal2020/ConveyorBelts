@@ -69,7 +69,7 @@ namespace ConveyorBelts
                 if (zFirst.HasValue) counts = des.CompletePath(end, zFirst.Value);
                 else { des.DesignateSingleCell(end); counts = des.lastCounts; }
                 bool stillSelected = Find.DesignatorManager.SelectedDesignator == des;
-                Log.Message($"[CB] {name}: {des.GetType().Name} {Rel(start, o)} -> {Rel(end, o)} zFirst={(zFirst.HasValue ? zFirst.Value.ToString() : "shift:" + (Event.current != null && Event.current.shift))} " +
+                Log.Message($"[CB] {name}: {des.GetType().Name} {Rel(start, o)} -> {Rel(end, o)} zFirst={(zFirst.HasValue ? zFirst.Value.ToString() : "des:" + des.ZFirst)} " +
                             $"rot={des.PlacingRot} pendingAfterClick1={afterFirst} pendingAfterClick2={(des.pendingStart.HasValue ? "set" : "null")} stillSelected={stillSelected} result: {Fmt(counts)} godMode={DebugSettings.godMode}");
             }
             finally { Find.DesignatorManager.Deselect(); }
@@ -82,6 +82,24 @@ namespace ConveyorBelts
 
         [DebugAction(Cat, "Test: path B basic Z-first (shift) O+(8,0) to O+(13,5)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void PathB() => RunPath<Designator_BeltPath_Basic>("path B", At(8, 0), At(13, 5), zFirst: true);
+
+        [DebugAction(Cat, "Test: path with Q/E flip", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PathFlip()
+        {
+            var des = Des<Designator_BeltPath_Basic>();
+            Find.DesignatorManager.Select(des);
+            try
+            {
+                des.DesignateSingleCell(At(0, 0));
+                des.FlipL();
+                Log.Message($"[CB] flip: ZFirst={des.ZFirst}");
+                des.DesignateSingleCell(At(5, 5));
+                Log.Message($"[CB] flip path result: {Fmt(des.lastCounts)} ZFirst after={des.ZFirst}");
+            }
+            finally { Find.DesignatorManager.Deselect(); }
+            Log.Message($"[CB] after deselect ZFirst={des.ZFirst}");
+            DumpTiles();
+        }
 
         [DebugAction(Cat, "Test: path C basic same cell O+(16,0) twice rot East", allowedGameStates = AllowedGameStates.PlayingOnMap)]
         static void PathC() => RunPath<Designator_BeltPath_Basic>("path C", At(16, 0), At(16, 0), rot: Rot4.East);
@@ -124,6 +142,18 @@ namespace ConveyorBelts
             wall.SetFaction(Faction.OfPlayer);
             GenSpawn.Spawn(wall, At(19, 2), Find.CurrentMap);
             RunPath<Designator_BeltPath_Express>("express over wall", At(19, 0), At(19, 4));
+        }
+
+        [DebugAction(Cat, "Test: express path over conduit at O+(19,2)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void ExpressOverConduit()
+        {
+            var map = Find.CurrentMap;
+            var conduit = ThingMaker.MakeThing(DefDatabase<ThingDef>.GetNamed("PowerConduit"));
+            conduit.SetFaction(Faction.OfPlayer);
+            GenSpawn.Spawn(conduit, At(19, 2), map);
+            RunPath<Designator_BeltPath_Express>("express over conduit", At(19, 0), At(19, 4));
+            var c = At(19, 2);
+            Log.Message($"[CB] conduit kept={c.GetThingList(map).Any(t => t.def.defName == "PowerConduit")} belt/plan there={BeltCellRules.HasBeltOrPlan(c, map)}");
         }
 
         [DebugAction(Cat, "Test: right-click with pending start", allowedGameStates = AllowedGameStates.PlayingOnMap)]

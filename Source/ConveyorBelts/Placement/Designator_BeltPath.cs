@@ -9,7 +9,7 @@ namespace ConveyorBelts
 {
     /// <summary>
     /// Two-click L-path belt placement (PLAN.md §5.2). Click 1 stores the start; click 2 places the
-    /// X-first (Shift: Z-first) path from BeltPath.Compute and clears the start. The designator stays
+    /// X-first (Q/E flips to Z-first) path from BeltPath.Compute and clears the start. The designator stays
     /// selected. Right-click / Esc with a pending start clears only the start.
     /// </summary>
     public abstract class Designator_BeltPath : Designator_Build
@@ -25,8 +25,13 @@ namespace ConveyorBelts
         /// <summary>Test-only: stands in for the mouse cell in the ghost preview (the harness cannot move the mouse).</summary>
         internal IntVec3? debugMouseCell;
 
-        /// <summary>Shift state seen in the last OnGUI event; SelectedUpdate runs outside OnGUI.</summary>
-        bool shiftHeld;
+        bool zFirst;
+
+        /// <summary>The current L order: false = across first, true = up/down first. Reset when deselected.</summary>
+        public bool ZFirst { get => zFirst; set => zFirst = value; }
+
+        /// <summary>Toggles the L order (what Q/E do while a start is pending).</summary>
+        public void FlipL() => zFirst = !zFirst;
 
         readonly ThingDef beltDef;
 
@@ -56,6 +61,7 @@ namespace ConveyorBelts
             base.Deselected();
             pendingStart = null;
             debugMouseCell = null;
+            zFirst = false;
         }
 
         public override void DesignateSingleCell(IntVec3 c)
@@ -65,8 +71,7 @@ namespace ConveyorBelts
                 pendingStart = c;
                 return;
             }
-            bool shift = Event.current != null && Event.current.shift;
-            CompletePath(c, shift);
+            CompletePath(c, zFirst);
         }
 
         /// <summary>The second click: places the path from pendingStart to end and clears the start.</summary>
@@ -175,7 +180,6 @@ namespace ConveyorBelts
         public override void DrawMouseAttachments()
         {
             var ev = Event.current;
-            if (ev != null) shiftHeld = ev.shift;
             if (TryConsumeCancel(ev)) return;
             base.DrawMouseAttachments();
         }
@@ -183,7 +187,14 @@ namespace ConveyorBelts
         public override void SelectedProcessInput(Event ev)
         {
             if (TryConsumeCancel(ev)) return;
-            base.SelectedProcessInput(ev);   // Q/E rotation
+            if (pendingStart.HasValue && (KeyBindingDefOf.Designator_RotateLeft.KeyDownEvent || KeyBindingDefOf.Designator_RotateRight.KeyDownEvent))
+            {
+                FlipL();
+                SoundDefOf.DragSlider.PlayOneShotOnCamera();
+                ev.Use();
+                return;
+            }
+            base.SelectedProcessInput(ev);   // Q/E rotation before the first click
         }
 
         public override void SelectedUpdate()
@@ -194,7 +205,7 @@ namespace ConveyorBelts
             if (!debugMouseCell.HasValue && ArchitectCategoryTab.InfoRect.Contains(UI.MousePositionOnUIInverted)) return;
             if (!mouse.InBounds(map)) return;
             var start = pendingStart ?? mouse;
-            foreach (var (cell, dir) in BeltPath.Compute(start.ToCell(), mouse.ToCell(), shiftHeld, placingRot.ToDir()))
+            foreach (var (cell, dir) in BeltPath.Compute(start.ToCell(), mouse.ToCell(), zFirst, placingRot.ToDir()))
             {
                 var c = cell.ToIntVec3();
                 if (!c.InBounds(map)) continue;

@@ -5,7 +5,7 @@ namespace ConveyorBelts
 {
     /// <summary>
     /// Belts are surface-only (user rule, 2026-11-21): nothing is built on a belt cell except other belts (tier
-    /// upgrades), floors and wall-mounted attachments (wall lamps). Underground belts will be a separate building.
+    /// upgrades), floors, power conduits and wall-mounted attachments (wall lamps). Underground belts will be a separate building.
     /// Used both ways: by the placement patch (nothing else onto a belt) and by Designator_BeltPath (no belt onto
     /// another building).
     /// </summary>
@@ -17,7 +17,7 @@ namespace ConveyorBelts
             if (def is TerrainDef) return true;
             if (def is not ThingDef td) return false;
             if (BeltGizmos.IsBeltDef(td)) return true;
-            return td.building != null && td.building.isAttachment;
+            return td.building != null && (td.building.isAttachment || td.building.isPowerConduit);
         }
 
         /// <summary>A belt, or a blueprint/frame of one, on this cell (ignoring the given things).</summary>
