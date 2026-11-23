@@ -621,7 +621,7 @@ namespace ConveyorBelts
         /// area near the map centre: A shelf+steel / belt, B belt in (steel) / shelf, C belt sideways (steel) / ground,
         /// D fermented barrel / shelf, E cryptosleep casket with a colonist / ground, F colonist corpse / grave,
         /// G fermented barrel / basic belt (max stack 10 &lt; 25 beer), H cryptosleep casket holding Steel x40 / shelf,
-        /// I transport pod holding Steel x40 + WoodLog x30 / torch lamp (empty).
+        /// I transport pod holding Steel x40 + WoodLog x30 / torch lamp (empty), J wall frame with 3 steel delivered / shelf.
         /// Sources are forbidden so colonists leave them alone (the test action pulls from forbidden).
         /// Belt items only move once "Toggle require motors" turned motors off.
         /// </summary>
@@ -660,7 +660,7 @@ namespace ConveyorBelts
             }
             Thing Steel(int n) { var s = ThingMaker.MakeThing(ThingDefOf.Steel); s.stackCount = n; return s; }
 
-            for (int row = 0; row < 9; row++)
+            for (int row = 0; row < 10; row++)
             {
                 var pos = new IntVec3(o.x + 3 + row / 7 * 8, 0, o.z + 2 + row % 7 * 4);   // rows H, I in a second column
                 var behind = pos + IntVec3.West;
@@ -729,10 +729,18 @@ namespace ConveyorBelts
                         if (fuel != null && fuel.Fuel > 0) fuel.ConsumeFuel(fuel.Fuel);
                         Log.Message($"[CB] transport pod holds {held.ContentsString}; torch fuel={fuel?.Fuel:0.0}");
                         break;
+                    case 9:
+                        var frame = (Frame)ThingMaker.MakeThing(ThingDefOf.Wall.frameDef, ThingDefOf.Steel);
+                        frame.SetFactionDirect(Faction.OfPlayer);
+                        GenSpawn.Spawn(frame, behind, map);
+                        frame.resourceContainer.TryAdd(Steel(3));
+                        Spawn("Shelf", front, false);
+                        Log.Message($"[CB] wall frame at {behind} holds {frame.resourceContainer.ContentsString}, still needs {frame.ThingCountNeeded(ThingDefOf.Steel)} steel");
+                        break;
                 }
             }
             Find.CameraDriver.SetRootPosAndSize((o + new IntVec3(4, 0, 12)).ToVector3Shifted(), 14f);
-            Log.Message($"[CB] pusher scenarios built at origin ({o.x},{o.z}); pushers at x={o.x + 3} z={o.z + 2}..{o.z + 26} step 4, and x={o.x + 11} z={o.z + 2},{o.z + 6}");
+            Log.Message($"[CB] pusher scenarios built at origin ({o.x},{o.z}); pushers at x={o.x + 3} z={o.z + 2}..{o.z + 26} step 4, and x={o.x + 11} z={o.z + 2},{o.z + 6},{o.z + 10}");
         }
 
         /// <summary>What the machine holds: fuel, wort, frame materials or the items on its storage cells.</summary>

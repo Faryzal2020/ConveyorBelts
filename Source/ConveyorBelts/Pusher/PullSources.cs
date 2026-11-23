@@ -88,7 +88,7 @@ namespace ConveyorBelts
             // 3. Building containers (IThingHolder building or comp): graves, caskets, transport pods, machines.
             for (int i = 0; i < list.Count; i++)
             {
-                if (!(list[i] is Building b)) continue;
+                if (!(list[i] is Building b)) continue;   // blueprints are not buildings; frames have no Holders
                 if (!includeForbidden && b.IsForbidden(Faction.OfPlayer)) continue;
                 foreach (var h in Holders(b))
                 {
@@ -128,10 +128,12 @@ namespace ConveyorBelts
 
         /// <summary>
         /// The standard containers of a building: itself when it is an IThingHolder (graves, caskets), and each comp
-        /// that is one (CompTransporter on transport pods, modded machine comps).
+        /// that is one (CompTransporter on transport pods, modded machine comps). Construction frames are never a source:
+        /// their resourceContainer holds delivered materials, and pulling them would stall construction.
         /// </summary>
         static IEnumerable<IThingHolder> Holders(Building b)
         {
+            if (b is Frame) yield break;
             if (b is IThingHolder self) yield return self;
             var comps = b.AllComps;
             for (int i = 0; i < comps.Count; i++)
