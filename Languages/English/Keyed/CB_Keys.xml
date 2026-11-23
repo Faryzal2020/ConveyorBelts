@@ -53,6 +53,7 @@
   <CB_PusherUpTo>{0} (up to {1})</CB_PusherUpTo>
   <CB_PusherStorage>{0} ({1} free stack slots)</CB_PusherStorage>
   <CB_PusherNothing>nothing</CB_PusherNothing>
+  <CB_PusherBelt>Belt</CB_PusherBelt>
   <CB_PusherWhenRejected>When the machine won't take it:</CB_PusherWhenRejected>
   <CB_PusherEjectNever>Eject only if never accepted</CB_PusherEjectNever>
   <CB_PusherEjectNeverDesc>Throw items the machine never takes to the side. Wait while it is just full.</CB_PusherEjectNeverDesc>

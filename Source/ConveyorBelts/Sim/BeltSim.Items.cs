@@ -51,6 +51,16 @@ namespace ConveyorBelts.Sim
             return true;
         }
 
+        /// <summary>The belt's front item once it has reached the tile's end (progress ≥ 1 − Eps), else false.</summary>
+        public bool TryGetEndItem(Cell belt, out BeltItem item)
+        {
+            if (Belts.TryGetValue(belt, out var b) && b.Items.Count > 0 && b.Items[0].Progress >= 1f - Eps)
+            {
+                item = b.Items[0]; return true;
+            }
+            item = default; return false;
+        }
+
         static readonly IReadOnlyList<BeltItem> NoItems = new BeltItem[0];
         public IReadOnlyList<BeltItem> ItemsAt(Cell c) => Belts.TryGetValue(c, out var b) ? b.Items : NoItems;
 

@@ -496,6 +496,189 @@ namespace ConveyorBelts
         static List<Building_PusherPort> Pushers(Map map)
             => map.listerThings.AllThings.OfType<Building_PusherPort>().OrderBy(p => p.thingIDNumber).ToList();
 
+        /// <summary>For every pusher: what it recognises behind / in front, every pull candidate, and Room for the first. Moves nothing.</summary>
+        [DebugAction(Cat, "Test: pusher sources and targets", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PusherSourcesTargets()
+        {
+            var map = Find.CurrentMap;
+            foreach (var p in Pushers(map))
+            {
+                var facing = p.Rotation.ToDir();
+                var behind = PullSources.CellBehind(p.Position, facing);
+                var front = PushTargets.CellInFront(p.Position, facing);
+                Log.Message($"[CB] pusher ({p.Position.x},{p.Position.z}) facing {facing}: pulling from {PullSources.Describe(behind, map, facing) ?? "None"}, " +
+                            $"pushing to {PushTargets.Describe(front, map, facing) ?? "None"}");
+                var cands = PullSources.At(behind, map, facing, includeForbidden: true).ToList();
+                int notForbidden = PullSources.At(behind, map, facing, includeForbidden: false).Count();
+                Log.Message($"[CB]   candidates {cands.Count} (without forbidden: {notForbidden})");
+                foreach (var c in cands) Log.Message($"[CB]   candidate {c.Thing.def.defName} x{c.Available} from {c.SourceLabel}");
+                if (cands.Count > 0)
+                {
+                    int room = PushTargets.Room(front, map, facing, cands[0].Thing, out var target);
+                    Log.Message($"[CB]   first candidate: room={room} target={(target == null ? "none" : PushTargets.Describe(front, map, facing))}");
+                }
+            }
+        }
+
+        /// <summary>Everything of def on the map: spawned, on belts, in building containers, as barrel product.</summary>
+        static int TotalOf(Map map, ThingDef def)
+        {
+            var comp = MapComponent_Belts.For(map);
+            int n = map.listerThings.ThingsOfDef(def).Sum(t => t.stackCount);
+            foreach (var (_, item) in comp.Sim.AllItems()) { var t = comp.Store.Get(item.Handle); if (t?.def == def) n += t.stackCount; }
+            foreach (var b in map.listerBuildings.allBuildingsColonist)
+            {
+                if (b is IThingHolder h && h.GetDirectlyHeldThings() is ThingOwner o) n += o.TotalStackCountOfDef(def);
+                var a = ProductAdapters.For(b);
+                var peek = a?.Peek(b);
+                if (peek != null && peek.def == def) n += peek.stackCount;
+            }
+            return n;
+        }
+
+        /// <summary>
+        /// For every pusher, one move the way Task 4's pusher will do it: first candidate the target has room for,
+        /// amount = min(available, stack limit, room) (products: whole batch only), Take then Give. Belt sources move at
+        /// most 2 so the split path (remainder stays on the belt) runs. Logs the def's map total before/after.
+        /// </summary>
+        [DebugAction(Cat, "Test: pusher one move each (take+give)", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void PusherOneMove()
+        {
+            var map = Find.CurrentMap;
+            foreach (var p in Pushers(map))
+            {
+                var facing = p.Rotation.ToDir();
+                var behind = PullSources.CellBehind(p.Position, facing);
+                var front = PushTargets.CellInFront(p.Position, facing);
+                var tag = $"[CB] move ({p.Position.x},{p.Position.z})";
+                bool moved = false;
+                foreach (var c in PullSources.At(behind, map, facing, includeForbidden: true))
+                {
+                    int room = PushTargets.Room(front, map, facing, c.Thing, out var target);
+                    if (room <= 0) continue;
+                    int n = System.Math.Min(c.Available, System.Math.Min(c.Thing.def.stackLimit, room));
+                    if (c.SourceLabel == PullSources.BeltLabel) n = System.Math.Min(n, 2);
+                    var def = c.Thing.def;
+                    int before = TotalOf(map, def);
+                    var part = c.Take(n);
+                    if (part == null)
+                    {
+                        Log.Message($"{tag}: Take({n}) of {def.defName} x{c.Available} (room {room}) returned null; total {before} -> {TotalOf(map, def)}");
+                        moved = true; break;
+                    }
+                    string taken = $"took {part.def.defName} x{part.stackCount} (asked {n}) spawned={part.Spawned} owner={(part.holdingOwner == null ? "none" : part.holdingOwner.Owner.ToString())}";
+                    PushTargets.Give(target, part);
+                    bool left = !part.Destroyed && !part.Spawned && part.holdingOwner == null && part.stackCount > 0;
+                    if (left) GenPlace.TryPlaceThing(part, p.Position, map, ThingPlaceMode.Near);   // test only: never lose it
+                    int after = TotalOf(map, def);
+                    var rest = PullSources.At(behind, map, facing, includeForbidden: true).Where(x => x.Thing.def == def).Sum(x => x.Available);
+                    Log.Message($"{tag}: {taken} from {c.SourceLabel} -> {PushTargets.Describe(front, map, facing)} (room was {room}); " +
+                                $"leftover={(left ? part.stackCount : 0)}; source now {rest}; room now {(part.Destroyed ? "?" : PushTargets.Room(front, map, facing, part, out _).ToString())}; total {def.defName} {before} -> {after}");
+                    moved = true;
+                    break;
+                }
+                if (!moved) Log.Message($"{tag}: nothing to move");
+            }
+        }
+
+        /// <summary>
+        /// Builds one east-facing (unpowered, so the v1 pusher accepts nothing from belts) pusher per row on a clear
+        /// area near the map centre: A shelf+steel / belt, B belt in (steel) / shelf, C belt sideways (steel) / ground,
+        /// D fermented barrel / shelf, E cryptosleep casket with a colonist / ground, F colonist corpse / grave,
+        /// G fermented barrel / basic belt (max stack 10 &lt; 25 beer).
+        /// Sources are forbidden so colonists leave them alone (the test action pulls from forbidden).
+        /// Belt items only move once "Toggle require motors" turned motors off.
+        /// </summary>
+        [DebugAction(Cat, "Test: build pusher source/target scenarios", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void BuildPusherScenarios()
+        {
+            var map = Find.CurrentMap;
+            var comp = MapComponent_Belts.For(map);
+            IntVec3 o = IntVec3.Invalid;
+            for (int r = 0; r < 60 && !o.IsValid; r++)
+                foreach (var c in GenRadial.RadialCellsAround(map.Center, r, true))
+                {
+                    var rect = new CellRect(c.x, c.z, 8, 30);
+                    if (rect.InBounds(map) && rect.Cells.All(x => x.Standable(map) && x.GetFirstItem(map) == null && x.GetFirstBuilding(map) == null && !x.Fogged(map)))
+                    { o = c; break; }
+                }
+            if (!o.IsValid) { Log.Warning("[CB] no clear 8x30 area"); return; }
+
+            var basic = DefDatabase<ThingDef>.GetNamed("CB_Belt_Basic");
+            Thing Spawn(string defName, IntVec3 cell, bool behind)
+            {
+                var def = DefDatabase<ThingDef>.GetNamed(defName);
+                var t = ThingMaker.MakeThing(def, def.MadeFromStuff ? GenStuff.DefaultStuffFor(def) : null);
+                t.SetFactionDirect(Faction.OfPlayer);
+                // Pick a rotation whose footprint stays on its own side of the pusher.
+                foreach (var rot in new[] { Rot4.North, Rot4.East, Rot4.South, Rot4.West })
+                {
+                    var r = GenAdj.OccupiedRect(cell, rot, def.size);
+                    if (behind ? r.maxX <= cell.x : r.minX >= cell.x) return GenSpawn.Spawn(t, cell, map, rot);
+                }
+                return GenSpawn.Spawn(t, cell, map);
+            }
+            Thing Steel(int n) { var s = ThingMaker.MakeThing(ThingDefOf.Steel); s.stackCount = n; return s; }
+
+            for (int row = 0; row < 7; row++)
+            {
+                var pos = new IntVec3(o.x + 3, 0, o.z + 2 + row * 4);
+                var behind = pos + IntVec3.West;
+                var front = pos + IntVec3.East;
+                var pusher = ThingMaker.MakeThing(DefDatabase<ThingDef>.GetNamed("CB_PusherPort"));
+                pusher.SetFactionDirect(Faction.OfPlayer);
+                GenSpawn.Spawn(pusher, pos, map, Rot4.East);
+                switch (row)
+                {
+                    case 0:
+                        Spawn("Shelf", behind, true);
+                        GenSpawn.Spawn(Steel(75), behind, map).SetForbidden(true, warnOnFail: false);
+                        BeltGizmos.SpawnBelt(basic, front, Rot4.East, map, null);
+                        break;
+                    case 1:
+                        BeltGizmos.SpawnBelt(basic, behind, Rot4.East, map, null);
+                        var s1 = Steel(5);
+                        if (!comp.TryPutOnBelt(behind, Rot4.West, s1)) s1.Destroy();
+                        Spawn("Shelf", front, false);
+                        break;
+                    case 2:
+                        BeltGizmos.SpawnBelt(basic, behind, Rot4.North, map, null);
+                        BeltGizmos.SpawnBelt(basic, behind + IntVec3.North, Rot4.North, map, null);
+                        var s2 = Steel(5);
+                        if (!comp.TryPutOnBelt(behind, Rot4.South, s2)) s2.Destroy();
+                        break;
+                    case 3:
+                        var barrel = (Building_FermentingBarrel)Spawn("FermentingBarrel", behind, true);
+                        barrel.AddWort(25);
+                        barrel.Progress = 1f;
+                        barrel.SetForbidden(true, warnOnFail: false);
+                        Spawn("Shelf", front, false);
+                        break;
+                    case 4:
+                        var casket = (Building_CryptosleepCasket)Spawn("CryptosleepCasket", behind, true);
+                        casket.SetForbidden(true, warnOnFail: false);
+                        var sleeper = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
+                        Log.Message($"[CB] casket accepts colonist: {casket.TryAcceptThing(sleeper)} contents={casket.GetDirectlyHeldThings().Count}");
+                        break;
+                    case 5:
+                        var dead = PawnGenerator.GeneratePawn(PawnKindDefOf.Colonist, Faction.OfPlayer);
+                        GenSpawn.Spawn(dead, behind, map);
+                        dead.Kill(null);
+                        dead.Corpse?.SetForbidden(true, warnOnFail: false);
+                        Spawn("Grave", front, false);
+                        break;
+                    case 6:
+                        var barrel2 = (Building_FermentingBarrel)Spawn("FermentingBarrel", behind, true);
+                        barrel2.AddWort(25);
+                        barrel2.Progress = 1f;
+                        BeltGizmos.SpawnBelt(basic, front, Rot4.East, map, null);
+                        break;
+                }
+            }
+            Find.CameraDriver.SetRootPosAndSize((o + new IntVec3(4, 0, 12)).ToVector3Shifted(), 14f);
+            Log.Message($"[CB] pusher scenarios built at origin ({o.x},{o.z}); pushers at x={o.x + 3}, z={o.z + 2}..{o.z + 26} step 4");
+        }
+
         /// <summary>What the machine holds: fuel, wort, frame materials or the items on its storage cells.</summary>
         static string TargetState(Thing t)
         {

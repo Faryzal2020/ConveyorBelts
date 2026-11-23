@@ -6,12 +6,15 @@ using Verse;
 
 namespace ConveyorBelts
 {
-    /// <summary>The v1 adapters, in priority order, and the lookup of the machine a pusher faces.</summary>
+    /// <summary>
+    /// The v1 machine adapters (frame, fuel, wort), in priority order, and the lookup of the machine a pusher faces.
+    /// Storage is not an adapter: PushTargets handles haul destinations with vanilla's capacity rules.
+    /// </summary>
     public static class PushAdapters
     {
         public static readonly IPushAdapter[] All =
         {
-            new FrameAdapter(), new RefuelableAdapter(), new BarrelAdapter(), new StorageAdapter(),
+            new FrameAdapter(), new RefuelableAdapter(), new BarrelAdapter(),
         };
 
         public static IPushAdapter For(Thing target)
@@ -111,69 +114,6 @@ namespace ConveyorBelts
         {
             int n = ((Building_FermentingBarrel)target).SpaceLeftForWort;
             return n <= 0 ? null : PushAdapters.UpTo(ThingDefOf.Wort, n);
-        }
-    }
-
-    /// <summary>Storage buildings (hoppers, shelves): their filter and the room left in their cells.</summary>
-    public class StorageAdapter : IPushAdapter
-    {
-        public bool Applies(Thing target) => target is ISlotGroupParent && target.Spawned;
-
-        public bool EverAccepts(Thing target, ThingDef def)
-            => ((ISlotGroupParent)target).GetStoreSettings()?.AllowedToAccept(def) ?? false;
-
-        /// <summary>Room for item in one cell: free item slots × stack limit + room in stacks it merges with.</summary>
-        static int SpaceIn(IntVec3 c, Map map, Thing item)
-        {
-            if (!c.InBounds(map)) return 0;
-            var list = map.thingGrid.ThingsListAtFast(c);
-            int items = 0, room = 0;
-            for (int i = 0; i < list.Count; i++)
-            {
-                var t = list[i];
-                if (t.def.category != ThingCategory.Item) continue;
-                items++;
-                if (t.CanStackWith(item)) room += Mathf.Max(0, t.def.stackLimit - t.stackCount);
-            }
-            return room + Mathf.Max(0, c.GetMaxItemsAllowedInCell(map) - items) * item.def.stackLimit;
-        }
-
-        public int CanAccept(Thing target, Thing item)
-        {
-            var p = (ISlotGroupParent)target;
-            var s = p.GetStoreSettings();
-            if (s == null || !s.AllowedToAccept(item)) return 0;
-            int total = 0;
-            foreach (var c in p.AllSlotCellsList()) total += SpaceIn(c, target.Map, item);
-            return total;
-        }
-
-        /// <summary>Places item cell by cell (ThingPlaceMode.Direct, merging into stacks there) up to each cell's room.</summary>
-        public void Accept(Thing target, Thing item)
-        {
-            var map = target.Map;
-            foreach (var c in ((ISlotGroupParent)target).AllSlotCellsList())
-            {
-                if (item.Destroyed || item.Spawned || item.stackCount <= 0) return;
-                int space = SpaceIn(c, map, item);
-                if (space <= 0) continue;
-                var part = item.stackCount <= space ? item : item.SplitOff(space);
-                GenPlace.TryPlaceThing(part, c, map, ThingPlaceMode.Direct);
-                // A split part that did not fully fit goes back into item (Direct may have spawned or absorbed the rest).
-                if (part != item && !part.Destroyed && !part.Spawned && part.stackCount > 0)
-                    item.TryAbsorbStack(part, respectStackLimit: false);
-            }
-        }
-
-        public string DescribeAcceptsNow(Thing target)
-        {
-            var p = (ISlotGroupParent)target;
-            var s = p.GetStoreSettings();
-            if (s == null) return null;
-            int free = 0;
-            foreach (var c in p.AllSlotCellsList())
-                free += Mathf.Max(0, c.GetMaxItemsAllowedInCell(target.Map) - c.GetItemCount(target.Map));
-            return "CB_PusherStorage".Translate(s.filter.Summary, free);
         }
     }
 }

@@ -134,6 +134,22 @@ namespace ConveyorBelts
             return Store.Take(handle);
         }
 
+        /// <summary>
+        /// Takes count of the item off the belt and returns them unspawned and unowned; the rest stays on the belt at
+        /// the same place (count ≥ the item's count takes it whole). Null if the item is gone. Never call from inside Sim.Tick.
+        /// </summary>
+        public Thing TakeFromBelt(IntVec3 belt, long handle, int count)
+        {
+            var cell = belt.ToCell();
+            if (count <= 0 || !Sim.TryRemoveItem(cell, handle, out var item)) return null;
+            if (count >= item.Count) return Store.Take(handle);
+            long piece = Store.Split(handle, count);
+            if (piece < 0) { Sim.RestoreItem(cell, item); return null; }   // thing gone (orphan): PurgeOrphans drops it
+            item.Count -= count;
+            Sim.RestoreItem(cell, item);
+            return Store.Take(piece);
+        }
+
         /// <summary>Drops the given belt items' things on/near cell as normal map items.</summary>
         public void DropItems(IntVec3 cell, List<BeltItem> items)
         {

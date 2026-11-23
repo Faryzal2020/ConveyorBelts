@@ -54,6 +54,18 @@ namespace ConveyorBelts.Tests
             Ticks(s, 200);
             Assert.Equal(1f, s.ItemsAt(new(0,0)).Single().Progress);
         }
+        [Fact] public void TryGetEndItem_OnlyAtTileEnd()
+        {
+            var (s, _) = New(); s.AddBelt(new(0,0), Dir.East, Tiers.Basic);
+            Assert.True(s.TryInsert(new(0,0), Dir.West, 7, 3));
+            Ticks(s, 20);
+            Assert.False(s.TryGetEndItem(new(0,0), out _));
+            Ticks(s, 21);
+            Assert.True(s.TryGetEndItem(new(0,0), out var it));
+            Assert.Equal(7, it.Handle);
+            Assert.Equal(3, it.Count);
+            Assert.False(s.TryGetEndItem(new(1,0), out _));
+        }
         [Fact] public void Insert_RespectsMinGap()
         {
             var (s, _) = New(); s.AddBelt(new(0,0), Dir.East, 0);
