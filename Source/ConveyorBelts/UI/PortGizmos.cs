@@ -14,13 +14,12 @@ namespace ConveyorBelts
         /// <summary>Opens the Port tab of the selected building.</summary>
         public static void OpenPortTab() => InspectPaneUtility.OpenTab(typeof(ITab_Port));
 
-        public static Command_Action OpenTab(string labelKey, string descKey)
+        public static Command_Action OpenTab()
         {
             tabIcon ??= ContentFinder<Texture2D>.Get("ConveyorBelts/UI/TabPort");
             return new Command_Action
             {
-                defaultLabel = labelKey.Translate(),
-                defaultDesc = descKey.Translate(),
+                defaultLabel = "CB_Settings".Translate(),
                 icon = tabIcon,
                 action = OpenPortTab,
             };
@@ -33,13 +32,12 @@ namespace ConveyorBelts
         static class Clipboard<T> where T : struct { public static T? Value; }
 
         /// <summary>Copy gizmo, plus a paste gizmo once something of type T was copied.</summary>
-        public static IEnumerable<Gizmo> CopyPaste<T>(Func<T> get, Action<T> set, string copyDescKey, string pasteDescKey)
+        public static IEnumerable<Gizmo> CopyPaste<T>(Func<T> get, Action<T> set)
             where T : struct
         {
             yield return new Command_Action
             {
                 defaultLabel = "CB_CopyMode".Translate(),
-                defaultDesc = copyDescKey.Translate(),
                 icon = TexButton.Copy,
                 action = () => Clipboard<T>.Value = get(),
             };
@@ -47,7 +45,6 @@ namespace ConveyorBelts
                 yield return new Command_Action
                 {
                     defaultLabel = "CB_PasteMode".Translate(),
-                    defaultDesc = pasteDescKey.Translate(),
                     icon = TexButton.Paste,
                     action = () => { if (Clipboard<T>.Value.HasValue) set(Clipboard<T>.Value.Value); },
                 };

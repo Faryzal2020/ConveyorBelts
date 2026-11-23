@@ -69,7 +69,7 @@ namespace ConveyorBelts
         public override AcceptanceReport DeconstructibleBy(Faction faction)
         {
             if (Spawned && BeltGizmos.PlannedReplacement(this) is ThingDef planned)
-                return "CB_BeingUpgraded".Translate(planned.LabelCap);
+                return "CB_BeingUpgraded".Translate();
             return base.DeconstructibleBy(faction);
         }
 
@@ -97,7 +97,7 @@ namespace ConveyorBelts
                 items.Append(t != null ? t.Label : "?");
                 if (Prefs.DevMode) items.Append(" (").Append(it.Progress.ToString("0.00")).Append(')');
             }
-            if (items.Length == 0) items.Append("CB_NoItems".Translate());
+            if (items.Length == 0) items.Append("CB_None".Translate());
 
             if (sb.Length > 0) sb.AppendLine();
             sb.Append("CB_BeltInspect".Translate(("CB_Tier" + Tier).Translate(), tiles, state, items.ToString()));

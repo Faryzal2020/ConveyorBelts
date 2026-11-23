@@ -118,8 +118,8 @@ namespace ConveyorBelts
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (var g in base.GetGizmos()) yield return g;
-            yield return PortGizmos.OpenTab("CB_ConfigureOutput", "CB_ConfigureOutputDesc");
-            foreach (var g in PortGizmos.CopyPaste(() => fullMode, SetFullMode, "CB_CopyModeDesc", "CB_PasteModeDesc"))
+            yield return PortGizmos.OpenTab();
+            foreach (var g in PortGizmos.CopyPaste(() => fullMode, SetFullMode))
                 yield return g;
         }
 
@@ -134,7 +134,6 @@ namespace ConveyorBelts
         {
             var s = base.GetInspectString();
             void Add(string line) { if (s.Length > 0) s += "\n"; s += line; }
-            if (power != null && !power.PowerOn) Add("CB_OutputNoPower".Translate());
             if (buffer != null) Add("CB_OutputHolding".Translate(buffer.LabelCap));
             return s;
         }

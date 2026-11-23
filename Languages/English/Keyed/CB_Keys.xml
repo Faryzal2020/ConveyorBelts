@@ -6,59 +6,40 @@
   <CB_Tier2>express</CB_Tier2>
   <CB_Running>running</CB_Running>
   <CB_Stopped>stopped</CB_Stopped>
-  <CB_NoItems>none</CB_NoItems>
   <CB_RotateMotor>Rotate motor</CB_RotateMotor>
-  <CB_RotateMotorDesc>Turn the motor to face the next adjacent belt.</CB_RotateMotorDesc>
   <CB_MotorDriving>Driving {0} tiles, {1} W</CB_MotorDriving>
-  <CB_MotorStandby>Line already driven</CB_MotorStandby>
-  <CB_RotateMotorNoBelts>No belt beside the motor to turn to.</CB_RotateMotorNoBelts>
+  <CB_MotorStandby>Standby</CB_MotorStandby>
+  <CB_RotateMotorNoBelts>No adjacent belt.</CB_RotateMotorNoBelts>
   <CB_RemoveBeltFirst>Remove the belt first.</CB_RemoveBeltFirst>
-  <CB_MotorIdle>No belt in front</CB_MotorIdle>
+  <CB_MotorIdle>Idle</CB_MotorIdle>
   <CB_TabPort>Port</CB_TabPort>
-  <CB_ConfigureItems>Configure items</CB_ConfigureItems>
-  <CB_ConfigureItemsDesc>Open the Port tab to choose which items haulers bring to this port.</CB_ConfigureItemsDesc>
   <CB_HaulPriority>Haul priority:</CB_HaulPriority>
   <CB_FilterItems>Items</CB_FilterItems>
   <CB_FilterAll>All</CB_FilterAll>
-  <CB_FilterNone>None</CB_FilterNone>
   <CB_FilterCategories>Categories</CB_FilterCategories>
   <CB_FilterResults>Results ({0})</CB_FilterResults>
   <CB_FilterAllowAll>Allow all</CB_FilterAllowAll>
   <CB_FilterDisallowAll>Disallow all</CB_FilterDisallowAll>
   <CB_FilterAllowed>Allowed ({0})</CB_FilterAllowed>
   <CB_FilterCategoryTag>category</CB_FilterCategoryTag>
-  <CB_FilterEmpty>None</CB_FilterEmpty>
-  <CB_PortNotFeeding>Not feeding belts: no power.</CB_PortNotFeeding>
-  <CB_WhenFull>When the cell in front is full:</CB_WhenFull>
-  <CB_OutputHold>Hold (belt backs up)</CB_OutputHold>
-  <CB_OutputHoldDesc>Keep the item and stop taking more until the front cell has room.</CB_OutputHoldDesc>
-  <CB_OutputSpill>Spill (drop nearby)</CB_OutputSpill>
-  <CB_OutputSpillDesc>Put the item on the nearest free cell.</CB_OutputSpillDesc>
-  <CB_ConfigureOutput>Output settings</CB_ConfigureOutput>
-  <CB_ConfigureOutputDesc>Open the Port tab to choose what happens when the cell in front is full.</CB_ConfigureOutputDesc>
-  <CB_CopyMode>Copy mode</CB_CopyMode>
-  <CB_CopyModeDesc>Copy this port's full-cell behaviour.</CB_CopyModeDesc>
-  <CB_PasteMode>Paste mode</CB_PasteMode>
-  <CB_PasteModeDesc>Apply the copied full-cell behaviour to this port.</CB_PasteModeDesc>
-  <CB_OutputNoPower>Not accepting items: no power.</CB_OutputNoPower>
+  <CB_WhenFull>When full:</CB_WhenFull>
+  <CB_OutputHold>Hold</CB_OutputHold>
+  <CB_OutputSpill>Spill</CB_OutputSpill>
+  <CB_Settings>Settings</CB_Settings>
+  <CB_Upgrade>Upgrade</CB_Upgrade>
+  <CB_Downgrade>Downgrade</CB_Downgrade>
+  <CB_CopyMode>Copy</CB_CopyMode>
+  <CB_PasteMode>Paste</CB_PasteMode>
   <CB_OutputHolding>Holding: {0}</CB_OutputHolding>
-  <CB_ConfigurePusher>Pusher settings</CB_ConfigurePusher>
-  <CB_ConfigurePusherDesc>Open the Port tab to choose which items this pusher moves.</CB_ConfigurePusherDesc>
-  <CB_CopyPusherDesc>Copy this pusher's item filter and forbidden setting.</CB_CopyPusherDesc>
-  <CB_PastePusherDesc>Apply the copied item filter and forbidden setting to this pusher.</CB_PastePusherDesc>
   <CB_PusherBelt>Belt</CB_PusherBelt>
   <CB_PusherPullingFrom>Pulling from: {0}</CB_PusherPullingFrom>
   <CB_PusherPushingTo>Pushing to: {0}</CB_PusherPushingTo>
   <CB_PullForbidden>Pull from forbidden</CB_PullForbidden>
   <CB_None>None</CB_None>
   <CB_SelectLine>Select line</CB_SelectLine>
-  <CB_SelectLineDesc>Select every belt in this belt's line: the straight run in one direction that one motor drives.</CB_SelectLineDesc>
-  <CB_UpgradeTo>Upgrade to {0}</CB_UpgradeTo>
-  <CB_DowngradeTo>Downgrade to {0}</CB_DowngradeTo>
-  <CB_ChangeTierDesc>Plan {0} belts over the selected belts, keeping their directions. Each old belt keeps moving items until its replacement is built; then it is removed with the usual deconstruction refund, and the items on it stay.</CB_ChangeTierDesc>
-  <CB_BeingUpgraded>Replacement planned: {0}. Cancel that plan to deconstruct this belt.</CB_BeingUpgraded>
+  <CB_BeingUpgraded>Upgrade planned</CB_BeingUpgraded>
   <CB_HaulFromBelt>Haul {0} to stockpile</CB_HaulFromBelt>
   <CB_PickUpFromBelt>Pick up {0}</CB_PickUpFromBelt>
-  <CB_CannotHaul>Cannot haul {0}: incapable of hauling</CB_CannotHaul>
+  <CB_CannotHaul>Cannot haul {0}</CB_CannotHaul>
   <CB_CannotPickUp>Cannot pick up {0}</CB_CannotPickUp>
 </LanguageData>

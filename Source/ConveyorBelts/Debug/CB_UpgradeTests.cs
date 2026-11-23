@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using LudeonTK;
 using RimWorld;
+using UnityEngine;
 using Verse;
 using Verse.AI;
 
@@ -26,10 +27,10 @@ namespace ConveyorBelts
                 .Select(b => $"({b.Position.x},{b.Position.z}){b.def.defName.Replace("CB_Belt_", "")}/{b.Rotation.ToStringHuman()}"));
 
         /// <summary>Grouped click: runs the command labelled label of every selected belt. Returns how many ran.</summary>
-        static int ClickGroup(string label)
+        static int ClickGroup(string label, Texture2D icon = null)
         {
             var cmds = SelectedBelts().SelectMany(b => b.GetGizmos()).OfType<Command_Action>()
-                .Where(c => c.defaultLabel == label).ToList();
+                .Where(c => c.defaultLabel == label && (icon == null || c.icon == icon)).ToList();
             foreach (var c in cmds)
                 if (!c.Disabled) c.action();
             return cmds.Count;
@@ -86,27 +87,28 @@ namespace ConveyorBelts
 
         static void ChangeTierClick(string labelKey, int tier)
         {
-            var label = labelKey.Translate(("CB_Tier" + tier).Translate()).ToString();
+            var label = labelKey.Translate().ToString();
+            var icon = BeltGizmos.TierIcon(BeltGizmos.TierDef(tier));
             var map = Find.CurrentMap;
             int plansBefore = Plans(map).Count;
             int beltsBefore = Belts(map).Count;
-            int ran = ClickGroup(label);
+            int ran = ClickGroup(label, icon);
             Log.Message($"[CB] click '{label}' on {SelectedBelts().Count} selected belts: commands run={ran} godMode={DebugSettings.godMode} " +
                         $"belt plans {plansBefore}->{Plans(map).Count} belts {beltsBefore}->{Belts(map).Count}");
             LogPlans();
         }
 
         [DebugAction(Cat, "Test: upgrade selected to fast", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void UpgradeToFast() => ChangeTierClick("CB_UpgradeTo", 1);
+        static void UpgradeToFast() => ChangeTierClick("CB_Upgrade", 1);
 
         [DebugAction(Cat, "Test: upgrade selected to express", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void UpgradeToExpress() => ChangeTierClick("CB_UpgradeTo", 2);
+        static void UpgradeToExpress() => ChangeTierClick("CB_Upgrade", 2);
 
         [DebugAction(Cat, "Test: downgrade selected to fast", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void DowngradeToFast() => ChangeTierClick("CB_DowngradeTo", 1);
+        static void DowngradeToFast() => ChangeTierClick("CB_Downgrade", 1);
 
         [DebugAction(Cat, "Test: downgrade selected to basic", allowedGameStates = AllowedGameStates.PlayingOnMap)]
-        static void DowngradeToBasic() => ChangeTierClick("CB_DowngradeTo", 0);
+        static void DowngradeToBasic() => ChangeTierClick("CB_Downgrade", 0);
 
         static List<Thing> Plans(Map map)
             => map.listerThings.ThingsInGroup(ThingRequestGroup.Blueprint)

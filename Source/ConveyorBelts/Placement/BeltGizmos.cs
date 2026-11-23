@@ -15,7 +15,7 @@ namespace ConveyorBelts
     /// </summary>
     public static class BeltGizmos
     {
-        static Texture2D selectLineIcon, changeTierIcon;
+        static Texture2D selectLineIcon;
         static List<ThingDef> tierDefs;
 
         /// <summary>Belt defs ordered by tier.</summary>
@@ -31,24 +31,19 @@ namespace ConveyorBelts
 
         public static ThingDef TierDef(int tier) => TierDefs.FirstOrDefault(d => TierOf(d) == tier);
 
-        /// <summary>Icon tint per tier (the belt colours: yellow, red, blue).</summary>
-        static Color TierColor(int tier) => tier switch
-        {
-            Tiers.Basic => new Color(1f, 0.85f, 0.25f),
-            Tiers.Fast => new Color(1f, 0.4f, 0.35f),
-            _ => new Color(0.4f, 0.65f, 1f),
-        };
+        /// <summary>The belt's picture: the def's uiIcon, else its graphic's north texture.</summary>
+        public static Texture2D TierIcon(ThingDef def)
+            => def.uiIcon != null && def.uiIcon != BaseContent.BadTex ? def.uiIcon
+             : (def.graphic?.MatNorth?.mainTexture as Texture2D) ?? BaseContent.BadTex;
 
         public static IEnumerable<Gizmo> For(Building_Belt belt)
         {
             if (belt.Faction != Faction.OfPlayer) yield break;
             selectLineIcon ??= ContentFinder<Texture2D>.Get("ConveyorBelts/UI/SelectLine");
-            changeTierIcon ??= ContentFinder<Texture2D>.Get("ConveyorBelts/UI/UpgradeLine");
 
             yield return new Command_Action
             {
                 defaultLabel = "CB_SelectLine".Translate(),
-                defaultDesc = "CB_SelectLineDesc".Translate(),
                 icon = selectLineIcon,
                 action = () => SelectLine(belt),
             };
@@ -58,13 +53,10 @@ namespace ConveyorBelts
             {
                 int tier = TierOf(def);
                 if (tier == own) continue;
-                string tierLabel = ("CB_Tier" + tier).Translate();
                 yield return new Command_Action
                 {
-                    defaultLabel = (tier > own ? "CB_UpgradeTo" : "CB_DowngradeTo").Translate(tierLabel),
-                    defaultDesc = "CB_ChangeTierDesc".Translate(tierLabel),   // the key avoids an article (vanilla English always writes "a")
-                    icon = changeTierIcon,
-                    defaultIconColor = TierColor(tier),
+                    defaultLabel = (tier > own ? "CB_Upgrade" : "CB_Downgrade").Translate(),
+                    icon = TierIcon(def),
                     action = () => ChangeTier(belt, def),
                 };
             }
@@ -94,7 +86,7 @@ namespace ConveyorBelts
         }
 
         /// <summary>
-        /// "Upgrade to / Downgrade to {tier}" for one belt: places a replace blueprint of def with the belt's own
+        /// "Upgrade" / "Downgrade" to the given tier for one belt: places a replace blueprint of def with the belt's own
         /// rotation (in god mode spawns the belt directly; Building_Belt.SpawnSetup swaps it in). Does nothing if a
         /// blueprint or frame of def is already on the cell or vanilla refuses the blueprint. Returns true if it
         /// placed something.

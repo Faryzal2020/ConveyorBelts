@@ -23,11 +23,9 @@ namespace ConveyorBelts
             y += 28f;
             if (Widgets.RadioButtonLabeled(new Rect(x, y, w, 26f), "CB_OutputHold".Translate(), Mode == OutputFullMode.Hold))
                 SetMode(OutputFullMode.Hold);
-            TooltipHandler.TipRegion(new Rect(x, y, w, 26f), "CB_OutputHoldDesc".Translate());
             y += 28f;
             if (Widgets.RadioButtonLabeled(new Rect(x, y, w, 26f), "CB_OutputSpill".Translate(), Mode == OutputFullMode.Spill))
                 SetMode(OutputFullMode.Spill);
-            TooltipHandler.TipRegion(new Rect(x, y, w, 26f), "CB_OutputSpillDesc".Translate());
             y += 28f;
             return y - rect.y;
         }

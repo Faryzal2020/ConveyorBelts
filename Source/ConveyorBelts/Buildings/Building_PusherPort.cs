@@ -160,8 +160,8 @@ namespace ConveyorBelts
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (var g in base.GetGizmos()) yield return g;
-            yield return PortGizmos.OpenTab("CB_ConfigurePusher", "CB_ConfigurePusherDesc");
-            foreach (var g in PortGizmos.CopyPaste(() => Settings, s => Settings = s, "CB_CopyPusherDesc", "CB_PastePusherDesc"))
+            yield return PortGizmos.OpenTab();
+            foreach (var g in PortGizmos.CopyPaste(() => Settings, s => Settings = s))
                 yield return g;
         }
 

@@ -96,7 +96,6 @@ namespace ConveyorBelts
             var rotate = new Command_Action
             {
                 defaultLabel = "CB_RotateMotor".Translate(),
-                defaultDesc = "CB_RotateMotorDesc".Translate(),
                 icon = rotateIcon,
                 action = RotateToNextBelt,
             };
@@ -128,8 +127,7 @@ namespace ConveyorBelts
             var st = comp.Sim.GetMotorStatus(Position.ToCell());
             string line = st.State switch
             {
-                MotorState.Driving => "CB_MotorDriving".Translate(st.LineTiles, st.Watts.ToString("0")).ToString()
-                    + (power != null && !power.PowerOn ? " (" + "NoPower".Translate().ToString().UncapitalizeFirst() + ")" : ""),
+                MotorState.Driving => "CB_MotorDriving".Translate(st.LineTiles, st.Watts.ToString("0")).ToString(),
                 MotorState.Standby => "CB_MotorStandby".Translate().ToString(),
                 _ => "CB_MotorIdle".Translate().ToString(),
             };

@@ -467,7 +467,7 @@ namespace ConveyorBelts
             Widgets.Label(new Rect(x, y, w - 2f * BtnW - 8f, 28f), "CB_FilterItems".Translate());
             Text.Anchor = TextAnchor.UpperLeft;
             if (Widgets.ButtonText(new Rect(x + w - 2f * BtnW - 4f, y, BtnW, 28f), "CB_FilterAll".Translate())) pending = AllowAll;
-            if (Widgets.ButtonText(new Rect(x + w - BtnW, y, BtnW, 28f), "CB_FilterNone".Translate())) pending = ClearAll;
+            if (Widgets.ButtonText(new Rect(x + w - BtnW, y, BtnW, 28f), "CB_None".Translate())) pending = ClearAll;
             y += 32f;
 
             DrawSearchBox(new Rect(x, y, w, 28f));
@@ -661,7 +661,7 @@ namespace ConveyorBelts
             if (list.Count == 0)
             {
                 GUI.color = Color.gray;
-                RowLabel(new Rect(outR.x + 6f, outR.y, outR.width - 6f, RowH), "CB_FilterEmpty".Translate(), truncAllowed);
+                RowLabel(new Rect(outR.x + 6f, outR.y, outR.width - 6f, RowH), "CB_None".Translate(), truncAllowed);
                 GUI.color = Color.white;
                 return;
             }

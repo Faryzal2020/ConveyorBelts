@@ -105,24 +105,13 @@ namespace ConveyorBelts
         public override IEnumerable<Gizmo> GetGizmos()
         {
             foreach (var g in base.GetGizmos()) yield return g;
-            yield return PortGizmos.OpenTab("CB_ConfigureItems", "CB_ConfigureItemsDesc");
+            yield return PortGizmos.OpenTab();
         }
 
         public override void ExposeData()
         {
             base.ExposeData();
             Scribe_Values.Look(ref nextDir, "nextDir");
-        }
-
-        public override string GetInspectString()
-        {
-            var s = base.GetInspectString();
-            if (power != null && !power.PowerOn)
-            {
-                if (s.Length > 0) s += "\n";
-                s += "CB_PortNotFeeding".Translate();
-            }
-            return s;
         }
     }
 }
