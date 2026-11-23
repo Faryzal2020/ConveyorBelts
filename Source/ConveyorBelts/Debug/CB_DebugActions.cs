@@ -511,7 +511,11 @@ namespace ConveyorBelts
                 var cands = PullSources.At(behind, map, facing, includeForbidden: true).ToList();
                 int notForbidden = PullSources.At(behind, map, facing, includeForbidden: false).Count();
                 Log.Message($"[CB]   candidates {cands.Count} (without forbidden: {notForbidden})");
-                foreach (var c in cands) Log.Message($"[CB]   candidate {c.Thing.def.defName} x{c.Available} from {c.SourceLabel}");
+                foreach (var c in cands)
+                {
+                    int rm = PushTargets.Room(front, map, facing, c.Thing, out _);
+                    Log.Message($"[CB]   candidate {c.Thing.def.defName} x{c.Available} from {c.SourceLabel}{(c.WholeBatch ? " (whole batch)" : "")} room={rm}");
+                }
                 if (cands.Count > 0)
                 {
                     int room = PushTargets.Room(front, map, facing, cands[0].Thing, out var target);
@@ -520,7 +524,7 @@ namespace ConveyorBelts
             }
         }
 
-        /// <summary>Everything of def on the map: spawned, on belts, in building containers, as barrel product.</summary>
+        /// <summary>Everything of def on the map: spawned, on belts, in building/comp containers, as barrel product.</summary>
         static int TotalOf(Map map, ThingDef def)
         {
             var comp = MapComponent_Belts.For(map);
@@ -529,6 +533,8 @@ namespace ConveyorBelts
             foreach (var b in map.listerBuildings.allBuildingsColonist)
             {
                 if (b is IThingHolder h && h.GetDirectlyHeldThings() is ThingOwner o) n += o.TotalStackCountOfDef(def);
+                foreach (var cp in b.AllComps)
+                    if (cp is IThingHolder ch && ch.GetDirectlyHeldThings() is ThingOwner co) n += co.TotalStackCountOfDef(def);
                 var a = ProductAdapters.For(b);
                 var peek = a?.Peek(b);
                 if (peek != null && peek.def == def) n += peek.stackCount;
@@ -582,10 +588,40 @@ namespace ConveyorBelts
         }
 
         /// <summary>
+        /// For every pusher whose first candidate sits inside a container (held, not spawned, not a product): Take(15)
+        /// and log Available before, the part taken, and what is left inside. The part is dropped beside the pusher.
+        /// </summary>
+        [DebugAction(Cat, "Test: take 15 from container candidates", allowedGameStates = AllowedGameStates.PlayingOnMap)]
+        static void TakeFromContainers()
+        {
+            var map = Find.CurrentMap;
+            foreach (var p in Pushers(map))
+            {
+                var facing = p.Rotation.ToDir();
+                var behind = PullSources.CellBehind(p.Position, facing);
+                var c = PullSources.At(behind, map, facing, includeForbidden: true).FirstOrDefault(x => !x.WholeBatch && !x.Thing.Spawned && x.Thing.holdingOwner != null
+                                                                                                        && x.Thing.holdingOwner.Owner is not BeltItemStore);
+                if (c == null) continue;
+                var owner = c.Thing.holdingOwner;
+                var def = c.Thing.def;
+                int before = c.Available, inOwner = owner.TotalStackCountOfDef(def), total = TotalOf(map, def);
+                var part = c.Take(15);
+                int leftInside = owner.TotalStackCountOfDef(def);
+                int again = PullSources.At(behind, map, facing, includeForbidden: true).Where(x => x.Thing.def == def).Sum(x => x.Available);
+                Log.Message($"[CB] take ({p.Position.x},{p.Position.z}) from {c.SourceLabel}: {def.defName} available {before} (inside {inOwner}); " +
+                            $"Take(15) -> {part?.def.defName} x{part?.stackCount} spawned={part?.Spawned} owner={(part?.holdingOwner == null ? "none" : "SET")}; " +
+                            $"inside now {leftInside}; candidates now {again}");
+                if (part != null) GenPlace.TryPlaceThing(part, p.Position + IntVec3.North, map, ThingPlaceMode.Near);
+                Log.Message($"[CB] take ({p.Position.x},{p.Position.z}): total {def.defName} {total} -> {TotalOf(map, def)} (part dropped on the map)");
+            }
+        }
+
+        /// <summary>
         /// Builds one east-facing (unpowered, so the v1 pusher accepts nothing from belts) pusher per row on a clear
         /// area near the map centre: A shelf+steel / belt, B belt in (steel) / shelf, C belt sideways (steel) / ground,
         /// D fermented barrel / shelf, E cryptosleep casket with a colonist / ground, F colonist corpse / grave,
-        /// G fermented barrel / basic belt (max stack 10 &lt; 25 beer).
+        /// G fermented barrel / basic belt (max stack 10 &lt; 25 beer), H cryptosleep casket holding Steel x40 / shelf,
+        /// I transport pod holding Steel x40 + WoodLog x30 / torch lamp (empty).
         /// Sources are forbidden so colonists leave them alone (the test action pulls from forbidden).
         /// Belt items only move once "Toggle require motors" turned motors off.
         /// </summary>
@@ -598,11 +634,15 @@ namespace ConveyorBelts
             for (int r = 0; r < 60 && !o.IsValid; r++)
                 foreach (var c in GenRadial.RadialCellsAround(map.Center, r, true))
                 {
-                    var rect = new CellRect(c.x, c.z, 8, 30);
-                    if (rect.InBounds(map) && rect.Cells.All(x => x.Standable(map) && x.GetFirstItem(map) == null && x.GetFirstBuilding(map) == null && !x.Fogged(map)))
+                    var rect = new CellRect(c.x, c.z, 16, 30);
+                    if (rect.InBounds(map) && rect.Cells.All(x => x.GetTerrain(map).passability != Traversability.Impassable && !x.Fogged(map)
+                                                                   && !x.GetThingList(map).Any(t => t.Faction == Faction.OfPlayer || !t.def.destroyable)))
                     { o = c; break; }
                 }
-            if (!o.IsValid) { Log.Warning("[CB] no clear 8x30 area"); return; }
+            if (!o.IsValid) { Log.Warning("[CB] no 16x30 area on passable terrain"); return; }
+            // Clear it: rocks, chunks, plants, loose items (pawns stay; areas with undestroyable things such as geysers are not chosen).
+            foreach (var x in new CellRect(o.x, o.z, 16, 30))
+                foreach (var t in x.GetThingList(map).Where(t => !(t is Pawn) && t.def.destroyable).ToList()) t.Destroy();
 
             var basic = DefDatabase<ThingDef>.GetNamed("CB_Belt_Basic");
             Thing Spawn(string defName, IntVec3 cell, bool behind)
@@ -620,9 +660,9 @@ namespace ConveyorBelts
             }
             Thing Steel(int n) { var s = ThingMaker.MakeThing(ThingDefOf.Steel); s.stackCount = n; return s; }
 
-            for (int row = 0; row < 7; row++)
+            for (int row = 0; row < 9; row++)
             {
-                var pos = new IntVec3(o.x + 3, 0, o.z + 2 + row * 4);
+                var pos = new IntVec3(o.x + 3 + row / 7 * 8, 0, o.z + 2 + row % 7 * 4);   // rows H, I in a second column
                 var behind = pos + IntVec3.West;
                 var front = pos + IntVec3.East;
                 var pusher = ThingMaker.MakeThing(DefDatabase<ThingDef>.GetNamed("CB_PusherPort"));
@@ -673,10 +713,26 @@ namespace ConveyorBelts
                         barrel2.Progress = 1f;
                         BeltGizmos.SpawnBelt(basic, front, Rot4.East, map, null);
                         break;
+                    case 7:
+                        var box = (Building_CryptosleepCasket)Spawn("CryptosleepCasket", behind, true);
+                        box.SetForbidden(true, warnOnFail: false);
+                        Log.Message($"[CB] casket accepts Steel x40: {box.TryAcceptThing(Steel(40))} contents={box.GetDirectlyHeldThings().ContentsString}");
+                        Spawn("Shelf", front, false);
+                        break;
+                    case 8:
+                        var pod = (ThingWithComps)Spawn("TransportPod", behind, true);
+                        var held = pod.GetComp<CompTransporter>().GetDirectlyHeldThings();
+                        var wood = ThingMaker.MakeThing(ThingDefOf.WoodLog); wood.stackCount = 30;
+                        held.TryAdd(Steel(40)); held.TryAdd(wood);
+                        var lamp = Spawn("TorchLamp", front, false);
+                        var fuel = lamp.TryGetComp<CompRefuelable>();
+                        if (fuel != null && fuel.Fuel > 0) fuel.ConsumeFuel(fuel.Fuel);
+                        Log.Message($"[CB] transport pod holds {held.ContentsString}; torch fuel={fuel?.Fuel:0.0}");
+                        break;
                 }
             }
             Find.CameraDriver.SetRootPosAndSize((o + new IntVec3(4, 0, 12)).ToVector3Shifted(), 14f);
-            Log.Message($"[CB] pusher scenarios built at origin ({o.x},{o.z}); pushers at x={o.x + 3}, z={o.z + 2}..{o.z + 26} step 4");
+            Log.Message($"[CB] pusher scenarios built at origin ({o.x},{o.z}); pushers at x={o.x + 3} z={o.z + 2}..{o.z + 26} step 4, and x={o.x + 11} z={o.z + 2},{o.z + 6}");
         }
 
         /// <summary>What the machine holds: fuel, wort, frame materials or the items on its storage cells.</summary>

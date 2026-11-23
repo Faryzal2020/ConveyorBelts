@@ -19,6 +19,12 @@ namespace ConveyorBelts
         public string SourceLabel;
 
         /// <summary>
+        /// True for count-based products (product adapters): Take only succeeds with n == Available, so the move must
+        /// wait until the target takes the whole batch. False for every other source.
+        /// </summary>
+        public bool WholeBatch;
+
+        /// <summary>
         /// Removes exactly n (1..Available) from the source and returns them as an unspawned, unowned thing (null if the
         /// source changed). Products only come out whole: n must equal Available, otherwise nothing happens (null).
         /// Call outside Sim.Tick, and only once per candidate list (the list is stale after a take).
@@ -79,23 +85,25 @@ namespace ConveyorBelts
                 result.Add(new PullCandidate { Thing = t, Available = t.stackCount, SourceLabel = label, Take = n => TakeSpawned(t, n) });
             }
 
-            // 3. Building containers (IThingHolder): graves, pods, machines holding things.
+            // 3. Building containers (IThingHolder building or comp): graves, caskets, transport pods, machines.
             for (int i = 0; i < list.Count; i++)
             {
-                if (!(list[i] is Building b) || !(b is IThingHolder h)) continue;
-                var owner = h.GetDirectlyHeldThings();
-                if (owner == null) continue;
-                bool buildingForbidden = !includeForbidden && b.IsForbidden(Faction.OfPlayer);
-                if (buildingForbidden) continue;
-                for (int k = 0; k < owner.Count; k++)
+                if (!(list[i] is Building b)) continue;
+                if (!includeForbidden && b.IsForbidden(Faction.OfPlayer)) continue;
+                foreach (var h in Holders(b))
                 {
-                    var t = owner[k];
-                    if (Skip(t, map, includeForbidden)) continue;
-                    result.Add(new PullCandidate
+                    var owner = h.GetDirectlyHeldThings();
+                    if (owner == null) continue;
+                    for (int k = 0; k < owner.Count; k++)
                     {
-                        Thing = t, Available = t.stackCount, SourceLabel = b.LabelCap,
-                        Take = n => TakeHeld(b, owner, t, n),
-                    });
+                        var t = owner[k];
+                        if (Skip(t, map, includeForbidden)) continue;
+                        result.Add(new PullCandidate
+                        {
+                            Thing = t, Available = t.stackCount, SourceLabel = b.LabelCap,
+                            Take = n => TakeHeld(b, owner, t, n),
+                        });
+                    }
                 }
             }
 
@@ -111,11 +119,29 @@ namespace ConveyorBelts
                 int count = peek.stackCount;
                 result.Add(new PullCandidate
                 {
-                    Thing = peek, Available = count, SourceLabel = b.LabelCap,
-                    Take = n => n == count ? a.TakeAll(b) : null,
+                    Thing = peek, Available = count, SourceLabel = b.LabelCap, WholeBatch = true,
+                    Take = n => n == count ? a.TakeAll(b) : null,   // safety net: a partial take does nothing
                 });
             }
             return result;
+        }
+
+        /// <summary>
+        /// The standard containers of a building: itself when it is an IThingHolder (graves, caskets), and each comp
+        /// that is one (CompTransporter on transport pods, modded machine comps).
+        /// </summary>
+        static IEnumerable<IThingHolder> Holders(Building b)
+        {
+            if (b is IThingHolder self) yield return self;
+            var comps = b.AllComps;
+            for (int i = 0; i < comps.Count; i++)
+                if (comps[i] is IThingHolder h) yield return h;
+        }
+
+        static bool IsContainer(Building b)
+        {
+            foreach (var _ in Holders(b)) return true;
+            return false;
         }
 
         static Thing TakeSpawned(Thing t, int n)
@@ -153,7 +179,7 @@ namespace ConveyorBelts
             if (BeltPointsIn(MapComponent_Belts.For(map), cell, facing)) return BeltLabel;
             var list = map.thingGrid.ThingsListAt(cell);
             for (int i = 0; i < list.Count; i++)
-                if (list[i] is Building b && (b is IThingHolder || ProductAdapters.For(b) != null)) return b.LabelCap;
+                if (list[i] is Building b && (IsContainer(b) || ProductAdapters.For(b) != null)) return b.LabelCap;
             var spot = SpotLabel(cell, map);
             if (spot != null) return spot;
             for (int i = 0; i < list.Count; i++)
