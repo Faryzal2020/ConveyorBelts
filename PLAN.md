@@ -1,6 +1,6 @@
 # ConveyorBelts — Plan (MVP v1)
 
-Status: **v1 implemented** on branch `feat/v1` (all 14 plan tasks plus the final-review fix wave; unit
+Status: **v1 implemented; v1.1 implemented on `feat/v1.1`.** Where `docs/superpowers/specs/2026-11-23-v1.1-design.md` differs from this file it wins (§5.2 Shift, §5.7 tab sketch and §5.9 Pusher are superseded). v1 was on branch `feat/v1` (all 14 plan tasks plus the final-review fix wave; unit
 tests and headless/windowed harness checks in `.superpowers/sdd/2026-11-20-conveyorbelts-v1/`). Still
 pending: the manual UI checks listed in `README.md` (mouse placement, gizmo clicks, Port tab clicks).
 The design below is the approved rev 2 text; measured results are folded into §5.6.
@@ -174,6 +174,8 @@ Items per tile is fixed at 2 (min spacing 0.5 tile) for every tier. Ports draw a
 each; a motor adds a 20 W base on top of its per-tile load.
 
 ### 5.2 Placement (two-click L path)
+> **v1.1:** Q/E flips the L (Shift no longer does). See `docs/superpowers/specs/2026-11-23-v1.1-design.md` §2.
+
 - Click 1: store start cell; a ghost path follows the mouse.
 - Click 2: compute the path, place blueprints (or instant-build in god mode), clear the start, stay
   in placement mode for the next line.
@@ -280,6 +282,8 @@ each; a motor adds a 20 W base on top of its per-tile load.
   the windowed cap) in both runs. **Target met** (2 ms average) for both layouts.
 
 ### 5.7 Port settings tab (shared by all three ports) [You + Proposal]
+> **v1.1:** the sketches below are superseded by the shared two-pane filter tab and short UI text. See `docs/superpowers/specs/2026-11-23-v1.1-design.md` §4, §5.
+
 Each port has one inspect tab, **"Port"**, built by us, replacing the vanilla Storage tab. The tab
 is a small framework (a header plus stacked sections) so later options can be added without
 redesigning it. Sketches (rough layout, not final art):
@@ -325,6 +329,8 @@ Input Port                                  Pusher Port
 - Unpowered: pawns can still haul into it (it is storage), but it stops feeding belts **[Proposal]**.
 
 ### 5.9 Pusher Port
+> **v1.1:** superseded. The pusher has no buffer or eject modes; it pulls from the cell behind and pushes to the cell in front. See `docs/superpowers/specs/2026-11-23-v1.1-design.md` §3.
+
 - Rotatable; the **front** faces the machine. Belts feed it from back or sides. Needs power.
 - Holds a one-item buffer. Each tick it asks the machine in front, through a **target adapter**, how
   many of this item it will take, and pushes that many.
